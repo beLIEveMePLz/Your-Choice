@@ -1,0 +1,14 @@
+# Ren'Py compiled files
+*.rpyc
+
+# cache
+game/cache/
+
+# saves
+game/saves/
+
+# logs
+log.txt
+
+# system files
+*.lnk
