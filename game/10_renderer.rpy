@@ -322,8 +322,8 @@ init -10 python:
                         layers = []
 
                         wall_rgba = self._shaded_rgba(base_wall, side, corrected, 1.0)
-                        lintel_rgba = self._shaded_rgba(base_wall, side, corrected, 0.88)
-                        frame_rgba = self._shaded_rgba(base_wall, side, corrected, 0.80)
+                        lintel_rgba = wall_rgba
+                        frame_rgba = wall_rgba
 
                         door_dark = 1.0 - (float(self.door_inset_ratio) * 0.45)
                         if door_dark < 0.60:

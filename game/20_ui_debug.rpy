@@ -199,8 +199,6 @@ screen debug_screen(app):
                         spacing 6
                         if hasattr(app, "tune_render_save"):
                             textbutton "Save" action Function(app.tune_render_save) style "ui_button" text_style "ui_button_text"
-                        if hasattr(app, "tune_render_load"):
-                            textbutton "Load" action Function(app.tune_render_load) style "ui_button" text_style "ui_button_text"
                         if hasattr(app, "tune_render_clear_saved"):
                             textbutton "Clear Save" action Function(app.tune_render_clear_saved) style "ui_button" text_style "ui_button_text"
 
