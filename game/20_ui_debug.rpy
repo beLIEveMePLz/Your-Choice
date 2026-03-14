@@ -83,6 +83,10 @@ screen debug_screen(app):
         key "2" action Function(app.do_load_house_hotkey) capture True
         key "K_2" action Function(app.do_load_house_hotkey) capture True
 
+    if hasattr(app, "do_load_vertical_house_hotkey"):
+        key "7" action Function(app.do_load_vertical_house_hotkey) capture True
+        key "K_7" action Function(app.do_load_vertical_house_hotkey) capture True
+
     if hasattr(app, "do_load_maze_hotkey"):
         key "3" action Function(app.do_load_maze_hotkey) capture True
         key "K_3" action Function(app.do_load_maze_hotkey) capture True
@@ -263,7 +267,7 @@ screen debug_screen(app):
                 vbox:
                     spacing 2
                     text "Status" style "ui_text"
-                    text "Keys: W/S move, A/D strafe, Q/E turn, F interact" style "ui_text_small"
+                    text "Keys: W/S move, A/D strafe, Q/E turn, F interact, 1..7 generators" style "ui_text_small"
                     for line in app.hud_lines():
                         text line style "ui_text_small" substitute False
 
@@ -338,6 +342,8 @@ screen debug_screen(app):
                     text "Stable fixtures + exploration layouts" style "ui_text_small"
                     if hasattr(app, "do_gen_house_floor_mvp"):
                         textbutton "Generate house floor MVP [2]" action Function(app.do_gen_house_floor_mvp) style "ui_button" text_style "ui_button_text"
+                    if hasattr(app, "do_gen_vertical_house"):
+                        textbutton "Generate vertical house [7]" action Function(app.do_gen_vertical_house) style "ui_button" text_style "ui_button_text"
                     if hasattr(app, "do_gen_demo_room"):
                         textbutton "Load demo room [1]" action Function(app.do_gen_demo_room) style "ui_button" text_style "ui_button_text"
                     null height 4
