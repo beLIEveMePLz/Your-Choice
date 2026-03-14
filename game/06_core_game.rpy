@@ -10,6 +10,19 @@ init -20 python:
         import renpy as rp
         import random
 
+
+        def _yc_surface(material_id, color, shade=1.0, tags=None, texture_id=None, meta=None):
+                return {
+                        "material_id": material_id,
+                        "color": color,
+                        "shade": float(shade),
+                        "texture_id": texture_id,
+                        "tags": list(tags or []),
+                        "meta": dict(meta or {}),
+                }
+
+
+
         def _yc_fill_generated_room_defaults(room, zone_id=1, zone_name="generated", zone_type="generated"):
                 room.define_zone(zone_id, name=zone_name, zone_type=zone_type)
                 for y in range(room.h):
@@ -81,6 +94,214 @@ init -20 python:
                         if getattr(be, "boundary_type", None) == boundary_type:
                                 n += 1
                 return n
+
+        def _yc_paint_zone_rect(room, x0, y0, x1, y1, zone_id):
+                x0 = int(x0)
+                y0 = int(y0)
+                x1 = int(x1)
+                y1 = int(y1)
+                if x0 > x1:
+                        x0, x1 = x1, x0
+                if y0 > y1:
+                        y0, y1 = y1, y0
+                for y in range(y0, y1 + 1):
+                        for x in range(x0, x1 + 1):
+                                if room.in_bounds(x, y):
+                                        room.set_zone(x, y, zone_id)
+
+        def _yc_open_same_zone_neighbors(room):
+                for y in range(room.h):
+                        for x in range(room.w):
+                                zid = room.get_zone_id(x, y)
+                                if zid is None:
+                                        continue
+                                if room.in_bounds(x + 1, y) and room.get_zone_id(x + 1, y) == zid:
+                                        room.set_boundary_mirrored(x, y, "E", EDGE_OPEN)
+                                if room.in_bounds(x, y + 1) and room.get_zone_id(x, y + 1) == zid:
+                                        room.set_boundary_mirrored(x, y, "S", EDGE_OPEN)
+
+        def yc_generate_vertical_house_world():
+                room = Room(15, 11, name="Generated House Vertical Core")
+
+                if not hasattr(room, "define_level"):
+                        raise Exception("Vertical core not installed. Apply 01_core_room vertical_links patch first.")
+
+                # Levels: current renderer still shows one 2D floor, but the world core
+                # now knows this house has an upper floor connected by a stairwell.
+                room.define_level(0, name="ground", elevation=0.0, floor_z=0.0, ceiling_z=3.0)
+                room.define_level(1, name="first",  elevation=3.0, floor_z=3.0, ceiling_z=6.0)
+
+                # Ground floor zones with explicit floor/ceiling profiles.
+                room.define_zone(
+                        10,
+                        name="living_room_0",
+                        zone_type="room",
+                        level_id=0,
+                        tags=["house", "ground", "living"],
+                        floor_profile=_yc_surface("living_wood", "#8a6d4d", shade=1.00, tags=["interior", "wood", "living"]),
+                        ceiling_profile=_yc_surface("painted_ceiling", "#d8d5cf", shade=1.00, tags=["interior", "ceiling"]),
+                        ceiling_height=3.0,
+                )
+                room.define_zone(
+                        11,
+                        name="hall_0",
+                        zone_type="hall",
+                        level_id=0,
+                        tags=["house", "ground", "hall"],
+                        floor_profile=_yc_surface("hall_runner", "#7a705d", shade=0.98, tags=["interior", "hall"]),
+                        ceiling_profile=_yc_surface("painted_ceiling", "#d4d1ca", shade=0.99, tags=["interior", "ceiling"]),
+                        ceiling_height=2.9,
+                )
+                room.define_zone(
+                        12,
+                        name="kitchen_0",
+                        zone_type="kitchen",
+                        level_id=0,
+                        tags=["house", "ground", "kitchen"],
+                        floor_profile=_yc_surface("kitchen_tile", "#8f9398", shade=0.98, tags=["interior", "tile", "kitchen"]),
+                        ceiling_profile=_yc_surface("painted_ceiling", "#d7d4cd", shade=1.00, tags=["interior", "ceiling"]),
+                        ceiling_height=2.85,
+                )
+                room.define_zone(
+                        20,
+                        name="stairwell_0",
+                        zone_type="stairwell",
+                        level_id=0,
+                        tags=["house", "ground", "vertical", "stairs"],
+                        floor_profile=_yc_surface("stairs_wood", "#6f5d47", shade=0.96, tags=["interior", "stairs"]),
+                        ceiling_profile=_yc_surface("stair_ceiling", "#cbc8c1", shade=0.98, tags=["interior", "ceiling", "stairwell"]),
+                        ceiling_height=4.8,
+                )
+
+                # Upper floor zones are metadata-first for now, but already carry surface profiles.
+                upper_footprint = [(6, 1), (7, 1), (8, 1), (6, 2), (7, 2), (8, 2), (6, 3), (7, 3), (8, 3)]
+                room.define_zone(
+                        110,
+                        name="hall_1",
+                        zone_type="hall",
+                        level_id=1,
+                        tags=["house", "upper", "hall"],
+                        meta={"footprint_cells": upper_footprint},
+                        floor_profile=_yc_surface("hall_runner", "#7a705d", shade=0.98, tags=["interior", "hall"]),
+                        ceiling_profile=_yc_surface("painted_ceiling", "#d4d1ca", shade=0.99, tags=["interior", "ceiling"]),
+                        ceiling_height=2.8,
+                )
+                room.define_zone(
+                        111,
+                        name="bedroom_a_1",
+                        zone_type="room",
+                        level_id=1,
+                        tags=["house", "upper", "bedroom"],
+                        meta={"footprint_cells": [(1, 1), (2, 1), (3, 1)]},
+                        floor_profile=_yc_surface("bedroom_wood", "#866a50", shade=1.00, tags=["interior", "wood", "bedroom"]),
+                        ceiling_profile=_yc_surface("painted_ceiling", "#ddd9d2", shade=1.00, tags=["interior", "ceiling"]),
+                        ceiling_height=2.75,
+                )
+                room.define_zone(
+                        112,
+                        name="bedroom_b_1",
+                        zone_type="room",
+                        level_id=1,
+                        tags=["house", "upper", "bedroom"],
+                        meta={"footprint_cells": [(11, 1), (12, 1), (13, 1)]},
+                        floor_profile=_yc_surface("bedroom_wood", "#866a50", shade=1.00, tags=["interior", "wood", "bedroom"]),
+                        ceiling_profile=_yc_surface("painted_ceiling", "#ddd9d2", shade=1.00, tags=["interior", "ceiling"]),
+                        ceiling_height=2.75,
+                )
+                room.define_zone(
+                        120,
+                        name="stairwell_1",
+                        zone_type="stairwell",
+                        level_id=1,
+                        tags=["house", "upper", "vertical", "stairs"],
+                        meta={"footprint_cells": upper_footprint},
+                        floor_profile=_yc_surface("stairs_wood", "#6f5d47", shade=0.96, tags=["interior", "stairs"]),
+                        ceiling_profile=_yc_surface("stair_ceiling", "#cbc8c1", shade=0.98, tags=["interior", "ceiling", "stairwell"]),
+                        ceiling_height=4.8,
+                )
+
+                # Paint current visible floor.
+                _yc_paint_zone_rect(room, 1, 1, 5, 4, 10)   # living
+                _yc_paint_zone_rect(room, 1, 5, 13, 9, 11)  # hall / corridor
+                _yc_paint_zone_rect(room, 9, 1, 13, 4, 12)  # kitchen
+                _yc_paint_zone_rect(room, 6, 1, 8, 4, 20)   # stairwell footprint on ground floor
+
+                # Same-zone interiors are open.
+                _yc_open_same_zone_neighbors(room)
+
+                # Inter-zone connections.
+                room.set_boundary_mirrored(3, 4, "S", EDGE_DOOR, door_state=DOOR_CLOSED)   # hall <-> living
+                room.set_boundary_mirrored(11, 4, "S", EDGE_DOOR, door_state=DOOR_CLOSED)  # hall <-> kitchen
+                room.set_boundary_mirrored(7, 4, "S", EDGE_OPEN)                            # hall <-> stairwell
+
+                room.rebuild_zone_memberships()
+                room.refresh_all_boundary_zone_links()
+
+                stair_cells = [(6, 1), (7, 1), (8, 1), (6, 2), (7, 2), (8, 2), (6, 3), (7, 3), (8, 3), (6, 4), (7, 4), (8, 4)]
+                room.build_ceiling_opening(
+                        "stairs_void_0_1",
+                        level_a=0,
+                        level_b=1,
+                        cells=stair_cells,
+                        opening_type="stair_void",
+                        blocks_movement=True,
+                        blocks_vision=False,
+                        blocks_fall=False,
+                )
+
+                room.build_vertical_link(
+                        "stairs_main",
+                        zone_a=20,
+                        zone_b=120,
+                        link_type="stairs",
+                        entry_cells_a=[(7, 3), (7, 4)],
+                        entry_cells_b=[(7, 3), (7, 4)],
+                        is_bidirectional=True,
+                        travel_mode="walk",
+                        travel_time=1.5,
+                        shaft_zone_ids=[20, 120],
+                        meta={"style": "two_flight_house_stairs", "note": "Current renderer still shows only floor 0 footprint."},
+                )
+
+                room.build_visibility_portal(
+                        "stairs_look_up",
+                        from_zone_id=20,
+                        to_zone_id=120,
+                        opening_id="stairs_void_0_1",
+                        portal_type="vertical_void",
+                        meta={"direction": "up"},
+                )
+                room.build_visibility_portal(
+                        "stairs_look_down",
+                        from_zone_id=120,
+                        to_zone_id=20,
+                        opening_id="stairs_void_0_1",
+                        portal_type="vertical_void",
+                        meta={"direction": "down"},
+                )
+
+                return _yc_make_world_from_template(room, 7, 8, facing="N")
+
+        def yc_vertical_house_summary(world=None):
+                try:
+                        W = world or yc_generate_vertical_house_world()
+                        r = W.room
+                        levels_n = len(getattr(r, "levels", {}) or {})
+                        links_n = len(getattr(r, "vertical_links", []) or [])
+                        openings_n = len(getattr(r, "ceiling_openings", {}) or {})
+                        portals_n = len(getattr(r, "visibility_portals", {}) or {})
+                        rep = r.vertical_core_checker() if hasattr(r, "vertical_core_checker") else {"ok": False, "errors": ["missing_vertical_core_checker"]}
+                        srep = r.surface_core_checker() if hasattr(r, "surface_core_checker") else {"ok": False, "errors": ["missing_surface_core_checker"]}
+                        return "Vertical house: levels=%s links=%s openings=%s portals=%s vertical_ok=%s surface_ok=%s" % (
+                                levels_n,
+                                links_n,
+                                openings_n,
+                                portals_n,
+                                bool(rep.get("ok", False)),
+                                bool(srep.get("ok", False)),
+                        )
+                except Exception as e:
+                        return "Vertical house summary EXC: %r" % (e,)
 
         def yc_generate_tunnel_world(with_doors=False, length=17):
                 length = int(length)
@@ -194,7 +415,7 @@ init -20 python:
 
                         self._log("Game init OK")
                         self._log("World: %s" % self.world.room.name)
-                        self._log("Input: W/S/A/D move, Q/E turn, F interact, 1 demo, 2 house, 3 maze, 4 maze+doors, 5 tunnel, 6 tunnel+doors")
+                        self._log("Input: W/S/A/D move, Q/E turn, F interact, 1 demo, 2 house, 3 maze, 4 maze+doors, 5 tunnel, 6 tunnel+doors, 7 vertical house")
 
                 # --------------------------------------------------
                 # Core helpers
@@ -628,6 +849,56 @@ init -20 python:
                 def tune_render_clear_saved(self):
                         self.clear_saved_render_tune()
 
+
+                def _surface_debug_label(self, profile):
+                        if profile is None:
+                                return "none"
+                        try:
+                                material_id = getattr(profile, "material_id", None)
+                                color = getattr(profile, "color", None)
+                        except Exception:
+                                material_id = None
+                                color = None
+                        if material_id is None and isinstance(profile, dict):
+                                material_id = profile.get("material_id")
+                                color = profile.get("color")
+                        if material_id is None:
+                                material_id = "unknown"
+                        if color:
+                                return "%s %s" % (material_id, color)
+                        return str(material_id)
+
+                def _current_zone_debug_lines(self):
+                        lines = []
+                        try:
+                                p = self.world.player
+                                r = self.world.room
+                                z = r.get_zone_at(p.x, p.y) if hasattr(r, "get_zone_at") else None
+                                if z is None:
+                                        lines.append("Zone: none")
+                                        return lines
+                                shell = "interior" if getattr(z, "is_interior", True) else "exterior"
+                                lines.append("Zone: %s (%s) level=%s shell=%s" % (
+                                        getattr(z, "name", z.zone_id),
+                                        getattr(z, "zone_type", "unknown"),
+                                        getattr(z, "level_id", 0),
+                                        shell,
+                                ))
+                                fp = getattr(z, "floor_profile", None)
+                                cp = getattr(z, "ceiling_profile", None)
+                                lines.append("Floor: %s" % self._surface_debug_label(fp))
+                                if getattr(z, "is_interior", True):
+                                        lines.append("Ceiling: %s | H %.2f" % (
+                                                self._surface_debug_label(cp),
+                                                float(getattr(z, "ceiling_height", 0.0)),
+                                        ))
+                                else:
+                                        lines.append("Ceiling: none (open sky)")
+                        except Exception as e:
+                                lines.append("Zone EXC: %r" % (e,))
+                        return lines
+
+
                 # --------------------------------------------------
                 # HUD / debug info
                 # --------------------------------------------------
@@ -644,6 +915,8 @@ init -20 python:
                         lines.append("Pitch: %s" % getattr(p, "pitch", 0))
                         lines.append("Tick: %s" % getattr(self.world, "tick", 0))
                         lines.append("Last move: %s" % getattr(self.world, "last_move_result", ""))
+                        for zline in self._current_zone_debug_lines():
+                                lines.append(zline)
                         lines.append(self._front_boundary_debug_text())
 
                         vals = self._renderer_vals()
@@ -726,6 +999,15 @@ init -20 python:
                                 self._load_generated_world(yc_generate_tunnel_world(with_doors=True), "tunnel_doors")
                         except Exception as e:
                                 self._log("GEN tunnel_doors EXC: %r" % (e,))
+                                self._refresh_ui()
+
+                def do_gen_vertical_house(self):
+                        try:
+                                w = yc_generate_vertical_house_world()
+                                self._load_generated_world(w, "vertical_house")
+                                self._log(yc_vertical_house_summary(w))
+                        except Exception as e:
+                                self._log("GEN vertical_house EXC: %r" % (e,))
                                 self._refresh_ui()
 
                 # --------------------------------------------------
@@ -1020,6 +1302,9 @@ init -20 python:
 
                 def do_load_tunnel_doors_hotkey(self):
                         return self.do_gen_tunnel_doors()
+
+                def do_load_vertical_house_hotkey(self):
+                        return self.do_gen_vertical_house()
 
                 # --------------------------------------------------
                 # Tests API
