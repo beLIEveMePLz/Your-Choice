@@ -83,6 +83,22 @@ screen debug_screen(app):
         key "2" action Function(app.do_load_house_hotkey) capture True
         key "K_2" action Function(app.do_load_house_hotkey) capture True
 
+    if hasattr(app, "do_load_maze_hotkey"):
+        key "3" action Function(app.do_load_maze_hotkey) capture True
+        key "K_3" action Function(app.do_load_maze_hotkey) capture True
+
+    if hasattr(app, "do_load_maze_doors_hotkey"):
+        key "4" action Function(app.do_load_maze_doors_hotkey) capture True
+        key "K_4" action Function(app.do_load_maze_doors_hotkey) capture True
+
+    if hasattr(app, "do_load_tunnel_hotkey"):
+        key "5" action Function(app.do_load_tunnel_hotkey) capture True
+        key "K_5" action Function(app.do_load_tunnel_hotkey) capture True
+
+    if hasattr(app, "do_load_tunnel_doors_hotkey"):
+        key "6" action Function(app.do_load_tunnel_doors_hotkey) capture True
+        key "K_6" action Function(app.do_load_tunnel_doors_hotkey) capture True
+
     if hasattr(app, "do_look_up"):
         key "K_UP" action Function(app.do_look_up) capture True
     if hasattr(app, "do_look_down"):
@@ -314,14 +330,24 @@ screen debug_screen(app):
                 style "ui_overlay_frame"
                 xalign 0.62
                 yalign 0.02
-                xsize 330
-                ysize 180
+                xsize 360
+                ysize 300
                 vbox:
                     spacing 4
                     text "Generator" style "ui_text"
-                    text "MVP floor-first" style "ui_text_small"
+                    text "Stable fixtures + exploration layouts" style "ui_text_small"
                     if hasattr(app, "do_gen_house_floor_mvp"):
-                        textbutton "Generate house floor MVP" action Function(app.do_gen_house_floor_mvp) style "ui_button" text_style "ui_button_text"
+                        textbutton "Generate house floor MVP [2]" action Function(app.do_gen_house_floor_mvp) style "ui_button" text_style "ui_button_text"
                     if hasattr(app, "do_gen_demo_room"):
-                        textbutton "Load demo room" action Function(app.do_gen_demo_room) style "ui_button" text_style "ui_button_text"
+                        textbutton "Load demo room [1]" action Function(app.do_gen_demo_room) style "ui_button" text_style "ui_button_text"
+                    null height 4
+                    text "New generated layouts" style "ui_text_small"
+                    if hasattr(app, "do_gen_maze"):
+                        textbutton "Generate maze [3]" action Function(app.do_gen_maze) style "ui_button" text_style "ui_button_text"
+                    if hasattr(app, "do_gen_maze_doors"):
+                        textbutton "Generate maze with doors [4]" action Function(app.do_gen_maze_doors) style "ui_button" text_style "ui_button_text"
+                    if hasattr(app, "do_gen_tunnel"):
+                        textbutton "Generate tunnel [5]" action Function(app.do_gen_tunnel) style "ui_button" text_style "ui_button_text"
+                    if hasattr(app, "do_gen_tunnel_doors"):
+                        textbutton "Generate tunnel with doors [6]" action Function(app.do_gen_tunnel_doors) style "ui_button" text_style "ui_button_text"
                     textbutton "Close" action Function(app.toggle_generator_ui) style "ui_button" text_style "ui_button_text"

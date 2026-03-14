@@ -8,6 +8,173 @@
 
 init -20 python:
         import renpy as rp
+        import random
+
+        def _yc_fill_generated_room_defaults(room, zone_id=1, zone_name="generated", zone_type="generated"):
+                room.define_zone(zone_id, name=zone_name, zone_type=zone_type)
+                for y in range(room.h):
+                        for x in range(room.w):
+                                room.set_zone(x, y, zone_id)
+                for y in range(room.h):
+                        for x in range(room.w):
+                                for d in DIRS:
+                                        room.set_boundary_mirrored(x, y, d, EDGE_WALL)
+                room.rebuild_zone_memberships()
+                room.refresh_all_boundary_zone_links()
+                return room
+
+        def _yc_link_cells(room, ax, ay, bx, by, door_state=None):
+                dx = int(bx) - int(ax)
+                dy = int(by) - int(ay)
+                if abs(dx) + abs(dy) != 1:
+                        return False
+                if dx == 1:
+                        d = "E"
+                elif dx == -1:
+                        d = "W"
+                elif dy == 1:
+                        d = "S"
+                else:
+                        d = "N"
+                if door_state is None:
+                        return room.set_boundary_mirrored(ax, ay, d, EDGE_OPEN)
+                return room.set_boundary_mirrored(ax, ay, d, EDGE_DOOR, door_state=door_state)
+
+        def _yc_make_world_from_template(room, player_x, player_y, facing="E"):
+                try:
+                        W = generate_demo_room()
+                except Exception:
+                        W = yc_generate_house_floor_mvp_world()
+
+                W.room = room
+
+                p = getattr(W, "player", None)
+                if p is None:
+                        W.player = Player(player_x, player_y, facing)
+                        p = W.player
+                else:
+                        p.x = int(player_x)
+                        p.y = int(player_y)
+                        p.facing = str(facing)
+                        if hasattr(p, "pitch"):
+                                p.pitch = 0
+
+                W.tick = 0
+                W.last_move_result = "spawn"
+
+                try:
+                        room.rebuild_zone_memberships()
+                        room.refresh_all_boundary_zone_links()
+                except Exception:
+                        pass
+
+                if hasattr(W, "_touch_logic"):
+                        try:
+                                W._touch_logic()
+                        except Exception:
+                                pass
+                return W
+
+        def _yc_count_boundaries(room, boundary_type):
+                n = 0
+                for be in room.boundaries.values():
+                        if getattr(be, "boundary_type", None) == boundary_type:
+                                n += 1
+                return n
+
+        def yc_generate_tunnel_world(with_doors=False, length=17):
+                length = int(length)
+                if length < 9:
+                        length = 9
+                if length > 39:
+                        length = 39
+
+                h = 7
+                w = length
+                mid = h // 2
+
+                room = Room(w, h, name=("Generated Tunnel Doors" if with_doors else "Generated Tunnel"))
+                _yc_fill_generated_room_defaults(room, zone_name=("tunnel_doors" if with_doors else "tunnel"), zone_type="corridor")
+
+                for x in range(1, w - 1):
+                        if with_doors and x in (4, 8, 12, w - 3):
+                                _yc_link_cells(room, x - 1, mid, x, mid, door_state=DOOR_CLOSED)
+                        else:
+                                _yc_link_cells(room, x - 1, mid, x, mid)
+
+                if mid - 1 >= 1:
+                        _yc_link_cells(room, w - 2, mid, w - 2, mid - 1)
+                if mid + 1 <= h - 2:
+                        _yc_link_cells(room, w - 2, mid, w - 2, mid + 1)
+
+                return _yc_make_world_from_template(room, 1, mid, facing="E")
+
+        def yc_generate_maze_world(with_doors=False, w=11, h=11, seed=1337):
+                w = int(w)
+                h = int(h)
+                if w < 7:
+                        w = 7
+                if h < 7:
+                        h = 7
+                if w > 19:
+                        w = 19
+                if h > 19:
+                        h = 19
+
+                rng = random.Random(int(seed))
+                room = Room(w, h, name=("Generated Maze Doors" if with_doors else "Generated Maze"))
+                _yc_fill_generated_room_defaults(room, zone_name=("maze_doors" if with_doors else "maze"), zone_type="maze")
+
+                start = (1, 1)
+                stack = [start]
+                visited = set([start])
+                parent = {start: None}
+
+                while stack:
+                        cx, cy = stack[-1]
+                        opts = []
+                        for d in DIRS:
+                                dx, dy = DIR_VEC[d]
+                                nx = cx + dx
+                                ny = cy + dy
+                                if 1 <= nx <= (w - 2) and 1 <= ny <= (h - 2) and (nx, ny) not in visited:
+                                        opts.append((nx, ny))
+                        rng.shuffle(opts)
+                        if not opts:
+                                stack.pop()
+                                continue
+                        nx, ny = opts[0]
+                        visited.add((nx, ny))
+                        parent[(nx, ny)] = (cx, cy)
+                        _yc_link_cells(room, cx, cy, nx, ny)
+                        stack.append((nx, ny))
+
+                if with_doors:
+                        far = start
+                        far_dist = 0
+                        for cell in visited:
+                                cur = cell
+                                dd = 0
+                                while cur is not None and cur != start:
+                                        cur = parent.get(cur)
+                                        dd += 1
+                                if dd > far_dist:
+                                        far = cell
+                                        far_dist = dd
+
+                        path = []
+                        cur = far
+                        while cur is not None:
+                                path.append(cur)
+                                cur = parent.get(cur)
+                        path.reverse()
+
+                        for i in range(3, len(path), 4):
+                                a = path[i - 1]
+                                b = path[i]
+                                _yc_link_cells(room, a[0], a[1], b[0], b[1], door_state=DOOR_CLOSED)
+
+                return _yc_make_world_from_template(room, start[0], start[1], facing="E")
 
         class Game(object):
                 def __init__(self):
@@ -27,7 +194,7 @@ init -20 python:
 
                         self._log("Game init OK")
                         self._log("World: %s" % self.world.room.name)
-                        self._log("Input: W/S/A/D move, Q/E turn, F interact, 1 demo, 2 house")
+                        self._log("Input: W/S/A/D move, Q/E turn, F interact, 1 demo, 2 house, 3 maze, 4 maze+doors, 5 tunnel, 6 tunnel+doors")
 
                 # --------------------------------------------------
                 # Core helpers
@@ -533,6 +700,34 @@ init -20 python:
                                 self._log("GEN demo EXC: %r" % (e,))
                                 self._refresh_ui()
 
+                def do_gen_maze(self):
+                        try:
+                                self._load_generated_world(yc_generate_maze_world(with_doors=False), "maze")
+                        except Exception as e:
+                                self._log("GEN maze EXC: %r" % (e,))
+                                self._refresh_ui()
+
+                def do_gen_maze_doors(self):
+                        try:
+                                self._load_generated_world(yc_generate_maze_world(with_doors=True), "maze_doors")
+                        except Exception as e:
+                                self._log("GEN maze_doors EXC: %r" % (e,))
+                                self._refresh_ui()
+
+                def do_gen_tunnel(self):
+                        try:
+                                self._load_generated_world(yc_generate_tunnel_world(with_doors=False), "tunnel")
+                        except Exception as e:
+                                self._log("GEN tunnel EXC: %r" % (e,))
+                                self._refresh_ui()
+
+                def do_gen_tunnel_doors(self):
+                        try:
+                                self._load_generated_world(yc_generate_tunnel_world(with_doors=True), "tunnel_doors")
+                        except Exception as e:
+                                self._log("GEN tunnel_doors EXC: %r" % (e,))
+                                self._refresh_ui()
+
                 # --------------------------------------------------
                 # Movement (safe wrappers)
                 # --------------------------------------------------
@@ -813,6 +1008,18 @@ init -20 python:
 
                 def do_load_house_hotkey(self):
                         return self.do_gen_house_floor_mvp()
+
+                def do_load_maze_hotkey(self):
+                        return self.do_gen_maze()
+
+                def do_load_maze_doors_hotkey(self):
+                        return self.do_gen_maze_doors()
+
+                def do_load_tunnel_hotkey(self):
+                        return self.do_gen_tunnel()
+
+                def do_load_tunnel_doors_hotkey(self):
+                        return self.do_gen_tunnel_doors()
 
                 # --------------------------------------------------
                 # Tests API

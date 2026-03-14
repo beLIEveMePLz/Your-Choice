@@ -116,29 +116,28 @@ init -20 python:
                 return (ok is True) and (why == "ok")
 
         def _test_game_front_door_actions_cycle():
-            G = Game()
-            G.world.player.x = 6
-            G.world.player.y = 2
-            G.world.player.facing = "W"
-            room = G.world.room
+                G = Game()
+                G.world.player.x = 6
+                G.world.player.y = 2
+                G.world.player.facing = "W"
+                room = G.world.room
 
-            if not G.do_door_ajar():
-                    return False
-            e = room.get_edge(6, 2, "W")
-            if _door_state(e) != DOOR_AJAR:
-                    return False
+                if not G.do_door_ajar():
+                        return False
+                e = room.get_edge(6, 2, "W")
+                if getattr(e, "door_state", None) != DOOR_AJAR:
+                        return False
 
-            if not G.do_door_open():
-                    return False
-            e = room.get_edge(6, 2, "W")
-            if _door_state(e) != DOOR_OPEN:
-                    return False
+                if not G.do_door_open():
+                        return False
+                e = room.get_edge(6, 2, "W")
+                if getattr(e, "door_state", None) != DOOR_OPEN:
+                        return False
 
-            if not G.do_door_close():
-                    return False
-            e = room.get_edge(6, 2, "W")
-            return _door_state(e) == DOOR_CLOSED
-
+                if not G.do_door_close():
+                        return False
+                e = room.get_edge(6, 2, "W")
+                return getattr(e, "door_state", None) == DOOR_CLOSED
 
         def _test_view_key_match():
                 W = generate_demo_room()
@@ -312,6 +311,24 @@ init -20 python:
                 finally:
                         _restore_saved_render_tune(snap)
 
+        def _test_generated_maze_boundary_checker():
+                W = yc_generate_maze_world(with_doors=False)
+                rep = W.room.boundary_checker_mvp()
+                return bool(rep.get("ok", False))
+
+        def _test_generated_maze_doors_present():
+                W = yc_generate_maze_world(with_doors=True)
+                return _yc_count_boundaries(W.room, EDGE_DOOR) > 0
+
+        def _test_generated_tunnel_boundary_checker():
+                W = yc_generate_tunnel_world(with_doors=False)
+                rep = W.room.boundary_checker_mvp()
+                return bool(rep.get("ok", False))
+
+        def _test_generated_tunnel_doors_present():
+                W = yc_generate_tunnel_world(with_doors=True)
+                return _yc_count_boundaries(W.room, EDGE_DOOR) >= 3
+
         add("player_in_bounds", _test_player_in_bounds, "Spawned player starts within room bounds.")
         add("edge_symmetry_scan", _test_edge_symmetry_scan, "Mirrored edges stay consistent (no one-way walls).")
         add("boundary_checker_demo", _test_boundary_checker_demo, "Boundary checker passes on demo map.")
@@ -328,3 +345,8 @@ init -20 python:
         add("renderer_passthrough_door_hit_classification", _test_renderer_passthrough_door_hit_classification, "Renderer treats ajar/open door hits as passthrough but not closed doors or walls.")
         add("render_tune_save_load_roundtrip", _test_render_tune_save_load_roundtrip, "Saved render tune restores the same values after local changes.")
         add("render_tune_bind_autoload", _test_render_tune_bind_autoload, "Renderer bind auto-loads the saved render tune profile.")
+
+        add("generated_maze_boundary_checker", _test_generated_maze_boundary_checker, "Generated maze resolves all mirrored boundaries.")
+        add("generated_maze_doors_present", _test_generated_maze_doors_present, "Maze-with-doors generator places at least one usable door.")
+        add("generated_tunnel_boundary_checker", _test_generated_tunnel_boundary_checker, "Generated tunnel resolves all mirrored boundaries.")
+        add("generated_tunnel_doors_present", _test_generated_tunnel_doors_present, "Tunnel-with-doors generator places chained doors for deeper progression.")
