@@ -264,6 +264,28 @@ init -20 python:
                                 "columns_cap": 320,
                         }, "render_home")
 
+                def tune_render_scale_a(self):
+                        self._apply_renderer_vals({
+                                "fov_deg": 62.0,
+                                "proj_scale": 0.74,
+                                "near_clip_dist": 0.16,
+                                "wall_height_world": 3.20,
+                                "cell_size_world": 0.78,
+                                "distance_soften": 0.12,
+                                "columns_cap": 320,
+                        }, "render_scale_a")
+
+                def tune_render_scale_b(self):
+                        self._apply_renderer_vals({
+                                "fov_deg": 60.0,
+                                "proj_scale": 0.78,
+                                "near_clip_dist": 0.15,
+                                "wall_height_world": 3.50,
+                                "cell_size_world": 0.72,
+                                "distance_soften": 0.10,
+                                "columns_cap": 320,
+                        }, "render_scale_b")
+
                 # --------------------------------------------------
                 # HUD / debug info
                 # --------------------------------------------------
@@ -377,34 +399,19 @@ init -20 python:
                         return None
 
                 def do_backward(self):
-                        try:
-                                facing = self.world.player.facing
-                                d = OPPOSITE.get(facing, "S")
-                                self._move_world_dir(d, "Back")
-                        except Exception as e:
-                                self._log("Back EXC: %r" % (e,))
-                                self._refresh_ui()
-                        return None
+                        facing = self.world.player.facing
+                        d = OPPOSITE.get(facing, "S")
+                        return self._move_world_dir(d, "Back")
 
                 def do_strafe_left(self):
-                        try:
-                                facing = self.world.player.facing
-                                d = LEFT_OF.get(facing, "W")
-                                self._move_world_dir(d, "StrafeL")
-                        except Exception as e:
-                                self._log("StrafeL EXC: %r" % (e,))
-                                self._refresh_ui()
-                        return None
+                        facing = self.world.player.facing
+                        d = LEFT_OF.get(facing, "W")
+                        return self._move_world_dir(d, "StrafeL")
 
                 def do_strafe_right(self):
-                        try:
-                                facing = self.world.player.facing
-                                d = RIGHT_OF.get(facing, "E")
-                                self._move_world_dir(d, "StrafeR")
-                        except Exception as e:
-                                self._log("StrafeR EXC: %r" % (e,))
-                                self._refresh_ui()
-                        return None
+                        facing = self.world.player.facing
+                        d = RIGHT_OF.get(facing, "E")
+                        return self._move_world_dir(d, "StrafeR")
 
                 def do_turn_left(self):
                         try:
@@ -603,12 +610,9 @@ init -20 python:
                                 return False
 
                 def do_interact(self):
-                        try:
-                                self.do_door_toggle()
-                        except Exception as e:
-                                self._log("Interact EXC: %r" % (e,))
-                                self._refresh_ui()
-                        return None
+                        # unified action
+                        return self.do_door_toggle()
+
 
                 def do_load_demo_hotkey(self):
                         return self.do_gen_demo_room()
