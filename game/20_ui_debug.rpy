@@ -195,6 +195,18 @@ screen debug_screen(app):
                         textbutton "Preset Home" action Function(app.tune_render_home) style "ui_button" text_style "ui_button_text"
                         textbutton "Reset" action Function(app.tune_render_reset) style "ui_button" text_style "ui_button_text"
 
+                    hbox:
+                        spacing 6
+                        if hasattr(app, "tune_render_save"):
+                            textbutton "Save" action Function(app.tune_render_save) style "ui_button" text_style "ui_button_text"
+                        if hasattr(app, "tune_render_load"):
+                            textbutton "Load" action Function(app.tune_render_load) style "ui_button" text_style "ui_button_text"
+                        if hasattr(app, "tune_render_clear_saved"):
+                            textbutton "Clear Save" action Function(app.tune_render_clear_saved) style "ui_button" text_style "ui_button_text"
+
+                    if hasattr(app, "has_saved_render_tune"):
+                        text ("Saved profile: %s" % ("YES" if app.has_saved_render_tune() else "NO")) style "ui_text_small"
+
         frame:
             style "ui_overlay_frame"
             xalign 0.5

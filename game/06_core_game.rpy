@@ -48,8 +48,17 @@ init -20 python:
                 def bind_renderer(self, renderer_obj):
                         self.renderer = renderer_obj
                         self.view = renderer_obj
-                        self._notify_renderer("bind", force=True)
-                        self._log("Renderer bound")
+
+                        loaded_saved = False
+                        try:
+                                loaded_saved = self.load_saved_render_tune(announce=False)
+                        except Exception:
+                                loaded_saved = False
+
+                        if not loaded_saved:
+                                self._notify_renderer("bind", force=True)
+
+                        self._log("Renderer bound%s" % (" + saved tune" if loaded_saved else ""))
                         self._refresh_ui()
                         return True
 
@@ -126,6 +135,117 @@ init -20 python:
                                 "render_ms_last": float(getattr(r, "render_ms_last", 0.0)),
                                 "render_ms_avg": float(getattr(r, "render_ms_avg", 0.0)),
                         }
+
+                def _renderer_tune_keys(self):
+                        return [
+                                "fov_deg",
+                                "proj_scale",
+                                "near_clip_dist",
+                                "wall_height_world",
+                                "cell_size_world",
+                                "distance_soften",
+                                "door_height_ratio",
+                                "door_frame_ratio",
+                                "door_inset_ratio",
+                                "door_ajar_angle_deg",
+                                "columns_cap",
+                        ]
+
+                def _get_saved_renderer_vals(self):
+                        try:
+                                p = getattr(rp.store, "persistent", None)
+                                if p is None:
+                                        return None
+                                data = getattr(p, "yc_render_tune_v1", None)
+                                if not isinstance(data, dict):
+                                        return None
+
+                                out = {}
+                                for k in self._renderer_tune_keys():
+                                        if k in data:
+                                                out[k] = data[k]
+                                if not out:
+                                        return None
+                                return out
+                        except Exception as e:
+                                self._log("Render tune persistent read EXC: %r" % (e,))
+                                return None
+
+                def has_saved_render_tune(self):
+                        return self._get_saved_renderer_vals() is not None
+
+                def save_render_tune(self, announce=True):
+                        vals = self._renderer_vals()
+                        if not vals:
+                                if announce:
+                                        self._log("Render tune save skipped: no renderer")
+                                self._refresh_ui()
+                                return False
+
+                        data = {}
+                        for k in self._renderer_tune_keys():
+                                if k in vals:
+                                        data[k] = vals[k]
+
+                        try:
+                                p = getattr(rp.store, "persistent", None)
+                                if p is None:
+                                        if announce:
+                                                self._log("Render tune save skipped: persistent unavailable")
+                                        self._refresh_ui()
+                                        return False
+
+                                setattr(p, "yc_render_tune_v1", data)
+                                try:
+                                        rp.save_persistent()
+                                except Exception:
+                                        pass
+
+                                if announce:
+                                        self._log("Render tune saved")
+                                self._refresh_ui()
+                                return True
+
+                        except Exception as e:
+                                self._log("Render tune save EXC: %r" % (e,))
+                                self._refresh_ui()
+                                return False
+
+                def load_saved_render_tune(self, announce=True):
+                        data = self._get_saved_renderer_vals()
+                        if not data:
+                                if announce:
+                                        self._log("Render tune load skipped: no saved profile")
+                                self._refresh_ui()
+                                return False
+
+                        ok = self._apply_renderer_vals(data, "render_load_saved")
+                        if ok and announce:
+                                self._log("Render tune loaded")
+                        return ok
+
+                def clear_saved_render_tune(self):
+                        try:
+                                p = getattr(rp.store, "persistent", None)
+                                if p is None:
+                                        self._log("Render tune clear skipped: persistent unavailable")
+                                        self._refresh_ui()
+                                        return False
+
+                                setattr(p, "yc_render_tune_v1", None)
+                                try:
+                                        rp.save_persistent()
+                                except Exception:
+                                        pass
+
+                                self._log("Render tune saved profile cleared")
+                                self._refresh_ui()
+                                return True
+
+                        except Exception as e:
+                                self._log("Render tune clear EXC: %r" % (e,))
+                                self._refresh_ui()
+                                return False
 
                 def _apply_renderer_vals(self, updates, reason="render_tune"):
                         r = self.renderer
@@ -332,6 +452,15 @@ init -20 python:
                                 "columns_cap": 320,
                         }, "render_home")
 
+                def tune_render_save(self):
+                        self.save_render_tune(announce=True)
+
+                def tune_render_load(self):
+                        self.load_saved_render_tune(announce=True)
+
+                def tune_render_clear_saved(self):
+                        self.clear_saved_render_tune()
+
                 # --------------------------------------------------
                 # HUD / debug info
                 # --------------------------------------------------
@@ -355,6 +484,7 @@ init -20 python:
                                 lines.append("FOV %.1f | Proj %.2f | Near %.2f" % (vals["fov_deg"], vals["proj_scale"], vals["near_clip_dist"]))
                                 lines.append("WallH %.2f | CellM %.2f | Soft %.2f" % (vals["wall_height_world"], vals["cell_size_world"], vals["distance_soften"]))
                                 lines.append("Cols %d | Render %.2f ms | Avg %.2f ms" % (vals["columns_cap"], vals["render_ms_last"], vals["render_ms_avg"]))
+                                lines.append("RenderTune saved: %s" % ("YES" if self.has_saved_render_tune() else "NO"))
 
                         return lines
 
