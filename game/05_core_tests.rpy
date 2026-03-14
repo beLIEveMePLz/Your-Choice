@@ -64,6 +64,20 @@ init -20 python:
         def _test_renderer_contract():
                 return True
 
+        def _test_house_floor_closed_door_blocks():
+                W = yc_generate_house_floor_mvp_world()
+                ok, why = W.room.can_move(6, 2, "W")
+                return (ok is False) and (why == "blocked_boundary")
+
+        def _test_house_floor_open_door_allows():
+                W = yc_generate_house_floor_mvp_world()
+                r = W.room
+                if not r.set_door_state_mirrored(6, 2, "W", DOOR_OPEN):
+                        return False
+                ok, why = r.can_move(6, 2, "W")
+                return (ok is True) and (why == "ok")
+
+
         def _test_view_key_match():
                 W = generate_demo_room()
                 k1 = W.state_view_key()
@@ -95,6 +109,8 @@ init -20 python:
         add("boundary_checker_house_floor", _test_boundary_checker_house_floor, "Boundary checker passes on house floor MVP.")
         add("zone_membership_nonempty", _test_zone_membership_nonempty, "Zones exist and have cells.")
         add("renderer_contract", _test_renderer_contract, "Renderer contract placeholder.")
+        add("house_floor_closed_door_blocks", _test_house_floor_closed_door_blocks, "Closed door blocks corridor-to-room movement.")
+        add("house_floor_open_door_allows", _test_house_floor_open_door_allows, "Opened door allows corridor-to-room movement.")
         add("view_key_match", _test_view_key_match, "View key is stable without changes.")
         add("pitch_bounds", _test_pitch_bounds, "Player pitch clamps to [-2..2].")
         add("pitch_affects_view_key", _test_pitch_affects_view_key, "Pitch change invalidates view cache key.")

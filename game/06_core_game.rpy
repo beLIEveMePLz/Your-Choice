@@ -11,7 +11,7 @@ init -20 python:
 
         class Game(object):
                 def __init__(self):
-                        self.world = generate_demo_room()
+                        self.world = yc_generate_house_floor_mvp_world()
 
                         self.view = None
                         self.renderer = None
@@ -27,6 +27,7 @@ init -20 python:
 
                         self._log("Game init OK")
                         self._log("World: %s" % self.world.room.name)
+                        self._log("Input: W/S/A/D move, Q/E turn, F interact, 1 demo, 2 house")
 
                 # --------------------------------------------------
                 # Core helpers
@@ -279,6 +280,7 @@ init -20 python:
                         lines.append("Pitch: %s" % getattr(p, "pitch", 0))
                         lines.append("Tick: %s" % getattr(self.world, "tick", 0))
                         lines.append("Last move: %s" % getattr(self.world, "last_move_result", ""))
+                        lines.append(self._front_boundary_debug_text())
 
                         vals = self._renderer_vals()
                         if vals:
@@ -287,6 +289,24 @@ init -20 python:
                                 lines.append("Cols %d | Render %.2f ms | Avg %.2f ms" % (vals["columns_cap"], vals["render_ms_last"], vals["render_ms_avg"]))
 
                         return lines
+
+
+                def _front_boundary_debug_text(self):
+                        try:
+                                p = self.world.player
+                                be = self.world.room.get_boundary(p.x, p.y, p.facing)
+                                if be is None:
+                                        return "Ahead: none"
+                                return "Ahead: %s state=%s move_block=%s vision_block=%s zones=(%s,%s)" % (
+                                        getattr(be, "boundary_type", None),
+                                        getattr(be, "door_state", None),
+                                        getattr(be, "blocks_movement", None),
+                                        getattr(be, "blocks_vision", None),
+                                        getattr(be, "zone_a", None),
+                                        getattr(be, "zone_b", None),
+                                )
+                        except Exception as e:
+                                return "Ahead EXC: %r" % (e,)
 
                 # --------------------------------------------------
                 # Generator actions
@@ -357,19 +377,34 @@ init -20 python:
                         return None
 
                 def do_backward(self):
-                        facing = self.world.player.facing
-                        d = OPPOSITE.get(facing, "S")
-                        return self._move_world_dir(d, "Back")
+                        try:
+                                facing = self.world.player.facing
+                                d = OPPOSITE.get(facing, "S")
+                                self._move_world_dir(d, "Back")
+                        except Exception as e:
+                                self._log("Back EXC: %r" % (e,))
+                                self._refresh_ui()
+                        return None
 
                 def do_strafe_left(self):
-                        facing = self.world.player.facing
-                        d = LEFT_OF.get(facing, "W")
-                        return self._move_world_dir(d, "StrafeL")
+                        try:
+                                facing = self.world.player.facing
+                                d = LEFT_OF.get(facing, "W")
+                                self._move_world_dir(d, "StrafeL")
+                        except Exception as e:
+                                self._log("StrafeL EXC: %r" % (e,))
+                                self._refresh_ui()
+                        return None
 
                 def do_strafe_right(self):
-                        facing = self.world.player.facing
-                        d = RIGHT_OF.get(facing, "E")
-                        return self._move_world_dir(d, "StrafeR")
+                        try:
+                                facing = self.world.player.facing
+                                d = RIGHT_OF.get(facing, "E")
+                                self._move_world_dir(d, "StrafeR")
+                        except Exception as e:
+                                self._log("StrafeR EXC: %r" % (e,))
+                                self._refresh_ui()
+                        return None
 
                 def do_turn_left(self):
                         try:
@@ -568,8 +603,18 @@ init -20 python:
                                 return False
 
                 def do_interact(self):
-                        # unified action
-                        return self.do_door_toggle()
+                        try:
+                                self.do_door_toggle()
+                        except Exception as e:
+                                self._log("Interact EXC: %r" % (e,))
+                                self._refresh_ui()
+                        return None
+
+                def do_load_demo_hotkey(self):
+                        return self.do_gen_demo_room()
+
+                def do_load_house_hotkey(self):
+                        return self.do_gen_house_floor_mvp()
 
                 # --------------------------------------------------
                 # Tests API

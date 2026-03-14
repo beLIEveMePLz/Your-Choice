@@ -1,14 +1,9 @@
-# Ren'Py compiled files
 *.rpyc
-
-# cache
-game/cache/
-
-# saves
-game/saves/
-
-# logs
+*.rpymc
 log.txt
-
-# system files
-*.lnk
+traceback.txt
+errors.txt
+cache/
+saves/
+.vscode/
+.idea/

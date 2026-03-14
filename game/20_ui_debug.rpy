@@ -34,26 +34,37 @@ style ui_button is default:
     padding (8, 4)
     xmargin 0
     ymargin 0
+    keyboard_focus False
 
 screen debug_screen(app):
     tag game_debug
     modal True
+
+    # Block Ren'Py menu/navigation actions inside gameplay debug screen.
+    key "game_menu" action NullAction() capture True
+    key "rollback" action NullAction() capture True
+    key "rollforward" action NullAction() capture True
+    key "dismiss" action NullAction() capture True
+    key "focus_left" action NullAction() capture True
+    key "focus_right" action NullAction() capture True
+    key "focus_up" action NullAction() capture True
+    key "focus_down" action NullAction() capture True
+    key "button_select" action NullAction() capture True
+    key "button_alternate" action NullAction() capture True
+    key "K_ESCAPE" action NullAction() capture True
 
     # Hard capture keyboard controls
     key "w" action Function(app.do_forward) capture True
     key "K_w" action Function(app.do_forward) capture True
 
     if hasattr(app, "do_backward"):
-        key "s" action Function(app.do_backward) capture True
-        key "K_s" action Function(app.do_backward) capture True
+        key "K_s" action [Function(renpy.notify, "K_s"), Function(app.do_backward)] capture True
 
     if hasattr(app, "do_strafe_left"):
-        key "a" action Function(app.do_strafe_left) capture True
-        key "K_a" action Function(app.do_strafe_left) capture True
+        key "K_a" action [Function(renpy.notify, "K_a"), Function(app.do_strafe_left)] capture True
 
     if hasattr(app, "do_strafe_right"):
-        key "d" action Function(app.do_strafe_right) capture True
-        key "K_d" action Function(app.do_strafe_right) capture True
+        key "K_d" action [Function(renpy.notify, "K_d"), Function(app.do_strafe_right)] capture True
 
     key "q" action Function(app.do_turn_left) capture True
     key "K_q" action Function(app.do_turn_left) capture True
@@ -63,6 +74,14 @@ screen debug_screen(app):
     if hasattr(app, "do_interact"):
         key "f" action Function(app.do_interact) capture True
         key "K_f" action Function(app.do_interact) capture True
+
+    if hasattr(app, "do_load_demo_hotkey"):
+        key "1" action Function(app.do_load_demo_hotkey) capture True
+        key "K_1" action Function(app.do_load_demo_hotkey) capture True
+
+    if hasattr(app, "do_load_house_hotkey"):
+        key "2" action Function(app.do_load_house_hotkey) capture True
+        key "K_2" action Function(app.do_load_house_hotkey) capture True
 
     if hasattr(app, "do_look_up"):
         key "K_UP" action Function(app.do_look_up) capture True
@@ -89,7 +108,7 @@ screen debug_screen(app):
                 textbutton ("Tests: ON" if app.show_tests else "Tests: OFF") action Function(app.toggle_tests) style "ui_button" text_style "ui_button_text"
                 if hasattr(app, "toggle_generator_ui"):
                     textbutton ("Generator UI: ON" if getattr(app, "show_generator_ui", False) else "Generator UI: OFF") action Function(app.toggle_generator_ui) style "ui_button" text_style "ui_button_text"
-                textbutton "Exit" action Return() style "ui_button" text_style "ui_button_text"
+                textbutton "Exit" action Return("exit_debug") style "ui_button" text_style "ui_button_text"
 
         if hasattr(app, "tune_fov_minus"):
             $ _rv = app._renderer_vals() if hasattr(app, "_renderer_vals") else None
