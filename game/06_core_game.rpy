@@ -118,6 +118,10 @@ init -20 python:
                                 "wall_height_world": float(getattr(r, "wall_height_world", 1.0)),
                                 "cell_size_world": float(getattr(r, "cell_size_world", 1.0)),
                                 "distance_soften": float(getattr(r, "distance_soften", 0.2)),
+                                "door_height_ratio": float(getattr(r, "door_height_ratio", 0.78)),
+                                "door_frame_ratio": float(getattr(r, "door_frame_ratio", 0.12)),
+                                "door_inset_ratio": float(getattr(r, "door_inset_ratio", 0.18)),
+                                "door_ajar_angle_deg": float(getattr(r, "door_ajar_angle_deg", 36.0)),
                                 "columns_cap": int(getattr(r, "columns_cap", 220)),
                                 "render_ms_last": float(getattr(r, "render_ms_last", 0.0)),
                                 "render_ms_avg": float(getattr(r, "render_ms_avg", 0.0)),
@@ -164,6 +168,30 @@ init -20 python:
                                         if v < 0.0: v = 0.0
                                         if v > 2.0: v = 2.0
                                         r.distance_soften = v
+
+                                if "door_height_ratio" in updates and hasattr(r, "door_height_ratio"):
+                                        v = float(updates["door_height_ratio"])
+                                        if v < 0.45: v = 0.45
+                                        if v > 0.98: v = 0.98
+                                        r.door_height_ratio = v
+
+                                if "door_frame_ratio" in updates and hasattr(r, "door_frame_ratio"):
+                                        v = float(updates["door_frame_ratio"])
+                                        if v < 0.04: v = 0.04
+                                        if v > 0.30: v = 0.30
+                                        r.door_frame_ratio = v
+
+                                if "door_inset_ratio" in updates and hasattr(r, "door_inset_ratio"):
+                                        v = float(updates["door_inset_ratio"])
+                                        if v < 0.0: v = 0.0
+                                        if v > 0.60: v = 0.60
+                                        r.door_inset_ratio = v
+
+                                if "door_ajar_angle_deg" in updates and hasattr(r, "door_ajar_angle_deg"):
+                                        v = float(updates["door_ajar_angle_deg"])
+                                        if v < 0.0: v = 0.0
+                                        if v > 89.0: v = 89.0
+                                        r.door_ajar_angle_deg = v
 
                                 if "columns_cap" in updates and hasattr(r, "columns_cap"):
                                         v = int(updates["columns_cap"])
@@ -228,6 +256,38 @@ init -20 python:
                         vals = self._renderer_vals()
                         if vals: self._apply_renderer_vals({"distance_soften": vals["distance_soften"] + 0.05}, "soft+")
 
+                def tune_doorh_minus(self):
+                        vals = self._renderer_vals()
+                        if vals: self._apply_renderer_vals({"door_height_ratio": vals["door_height_ratio"] - 0.02}, "doorh-")
+
+                def tune_doorh_plus(self):
+                        vals = self._renderer_vals()
+                        if vals: self._apply_renderer_vals({"door_height_ratio": vals["door_height_ratio"] + 0.02}, "doorh+")
+
+                def tune_frame_minus(self):
+                        vals = self._renderer_vals()
+                        if vals: self._apply_renderer_vals({"door_frame_ratio": vals["door_frame_ratio"] - 0.01}, "frame-")
+
+                def tune_frame_plus(self):
+                        vals = self._renderer_vals()
+                        if vals: self._apply_renderer_vals({"door_frame_ratio": vals["door_frame_ratio"] + 0.01}, "frame+")
+
+                def tune_inset_minus(self):
+                        vals = self._renderer_vals()
+                        if vals: self._apply_renderer_vals({"door_inset_ratio": vals["door_inset_ratio"] - 0.02}, "inset-")
+
+                def tune_inset_plus(self):
+                        vals = self._renderer_vals()
+                        if vals: self._apply_renderer_vals({"door_inset_ratio": vals["door_inset_ratio"] + 0.02}, "inset+")
+
+                def tune_ajar_minus(self):
+                        vals = self._renderer_vals()
+                        if vals: self._apply_renderer_vals({"door_ajar_angle_deg": vals["door_ajar_angle_deg"] - 3.0}, "ajar-")
+
+                def tune_ajar_plus(self):
+                        vals = self._renderer_vals()
+                        if vals: self._apply_renderer_vals({"door_ajar_angle_deg": vals["door_ajar_angle_deg"] + 3.0}, "ajar+")
+
                 def tune_cols_minus(self):
                         vals = self._renderer_vals()
                         if vals:
@@ -250,6 +310,10 @@ init -20 python:
                                 "wall_height_world": 1.0,
                                 "cell_size_world": 1.0,
                                 "distance_soften": 0.20,
+                                "door_height_ratio": 0.78,
+                                "door_frame_ratio": 0.12,
+                                "door_inset_ratio": 0.18,
+                                "door_ajar_angle_deg": 36.0,
                                 "columns_cap": 220,
                         }, "render_reset")
 
@@ -261,6 +325,10 @@ init -20 python:
                                 "wall_height_world": 1.0,
                                 "cell_size_world": 1.25,
                                 "distance_soften": 0.35,
+                                "door_height_ratio": 0.80,
+                                "door_frame_ratio": 0.12,
+                                "door_inset_ratio": 0.22,
+                                "door_ajar_angle_deg": 38.0,
                                 "columns_cap": 320,
                         }, "render_home")
 

@@ -31,6 +31,12 @@ init -10 python:
                         self.cell_size_world = 1.00
                         self.distance_soften = 0.20
 
+                        # Boundary / door visual profile (render only)
+                        self.door_height_ratio = 0.78
+                        self.door_frame_ratio = 0.12
+                        self.door_inset_ratio = 0.18
+                        self.door_ajar_angle_deg = 36.0
+
                         # Raycaster internals
                         self.ray_step = 0.035
                         self.max_ray_dist = 18.0
@@ -80,6 +86,10 @@ init -10 python:
                                 self.wall_height_world,
                                 self.cell_size_world,
                                 self.distance_soften,
+                                self.door_height_ratio,
+                                self.door_frame_ratio,
+                                self.door_inset_ratio,
+                                self.door_ajar_angle_deg,
                         )
 
                 def _blit_solid(self, r, color, x, y, ww, hh, st, at):
@@ -108,19 +118,23 @@ init -10 python:
                                 return {'hit': False, 'edge': e, 'kind': 'edge'}
                         return {'hit': True, 'edge': e, 'kind': 'edge'}
 
-                def _cast_ray(self, ang):
+                def _clamp01(self, v):
+                        if v < 0.0:
+                                return 0.0
+                        if v > 1.0:
+                                return 1.0
+                        return float(v)
+
+                def _cast_ray_from(self, ang, px, py):
                         import math
                         room = self.world.room
-                        p = self.world.player
-                        px = p.x + 0.5
-                        py = p.y + 0.5
                         dx = math.cos(ang)
                         dy = math.sin(ang)
 
                         step = self.ray_step
                         max_steps = int(self.max_ray_dist / step)
-                        prevx = px
-                        prevy = py
+                        prevx = float(px)
+                        prevy = float(py)
 
                         for i in range(1, max_steps + 1):
                                 t1 = i * step
@@ -143,7 +157,8 @@ init -10 python:
                                         tx = (xb - prevx) / (curx - prevx)
                                         if 0.0 <= tx <= 1.0:
                                                 y_at = prevy + (cury - prevy) * tx
-                                                events.append((tx, xb, y_at, side_dir))
+                                                edge_u = self._clamp01(y_at - math.floor(y_at))
+                                                events.append((tx, xb, y_at, side_dir, edge_u))
 
                                 if cur_cy != prev_cy and abs(cury - prevy) > 1e-9:
                                         if cury > prevy:
@@ -155,11 +170,12 @@ init -10 python:
                                         ty = (yb - prevy) / (cury - prevy)
                                         if 0.0 <= ty <= 1.0:
                                                 x_at = prevx + (curx - prevx) * ty
-                                                events.append((ty, x_at, yb, side_dir))
+                                                edge_u = self._clamp01(x_at - math.floor(x_at))
+                                                events.append((ty, x_at, yb, side_dir, edge_u))
 
                                 if events:
                                         events.sort(key=lambda e: e[0])
-                                        for frac, _a, _b, side_dir in events:
+                                        for frac, hit_x, hit_y, side_dir, edge_u in events:
                                                 hit_dist = ((i - 1) * step) + (step * frac)
                                                 info = self._edge_block_info(prev_cx, prev_cy, side_dir)
                                                 if info['hit']:
@@ -167,37 +183,55 @@ init -10 python:
                                                                 'dist': max(0.02, hit_dist),
                                                                 'edge': info['edge'],
                                                                 'side': 'vertical' if side_dir in ('E', 'W') else 'horizontal',
+                                                                'edge_dir': side_dir,
+                                                                'edge_u': edge_u,
+                                                                'hit_x': hit_x,
+                                                                'hit_y': hit_y,
+                                                        }
+                                                edge = info.get('edge') or {}
+                                                if edge.get('type') == EDGE_DOOR:
+                                                        return {
+                                                                'dist': max(0.02, hit_dist),
+                                                                'edge': edge,
+                                                                'side': 'vertical' if side_dir in ('E', 'W') else 'horizontal',
+                                                                'edge_dir': side_dir,
+                                                                'edge_u': edge_u,
+                                                                'hit_x': hit_x,
+                                                                'hit_y': hit_y,
                                                         }
 
                                 if (cur_cx != prev_cx or cur_cy != prev_cy):
                                         nc = room.get(cur_cx, cur_cy)
                                         if nc is None:
-                                                return {'dist': max(0.02, t1), 'edge': {'type': EDGE_WALL}, 'side': 'void'}
+                                                return {'dist': max(0.02, t1), 'edge': {'type': EDGE_WALL}, 'side': 'void', 'edge_u': 0.5}
                                         if nc.object_blocker:
-                                                return {'dist': max(0.02, t1), 'edge': {'type': EDGE_WALL}, 'side': 'object'}
+                                                return {'dist': max(0.02, t1), 'edge': {'type': EDGE_WALL}, 'side': 'object', 'edge_u': 0.5}
 
                                 prevx = curx
                                 prevy = cury
 
-                        return {'dist': self.max_ray_dist, 'edge': {'type': EDGE_WALL}, 'side': 'far'}
+                        return {'dist': self.max_ray_dist, 'edge': {'type': EDGE_WALL}, 'side': 'far', 'edge_u': 0.5}
 
-                def _wall_color(self, edge, side, dist):
+                def _cast_ray(self, ang):
+                        p = self.world.player
+                        return self._cast_ray_from(ang, p.x + 0.5, p.y + 0.5)
+
+                def _wall_base_rgb(self, edge):
                         et = (edge or {}).get('type', EDGE_WALL)
                         if et == EDGE_DOOR:
                                 ds = _door_state(edge)
                                 if ds == DOOR_LOCKED:
-                                        base = [130, 34, 34]
-                                elif ds == DOOR_CLOSED:
-                                        base = [110, 78, 48]
-                                elif ds == DOOR_AJAR:
-                                        base = [165, 125, 70]
-                                else:
-                                        base = [200, 160, 90]
-                        elif et == EDGE_WINDOW_VIEW:
-                                base = [80, 110, 145]
-                        else:
-                                base = [168, 168, 178]
+                                        return (130, 34, 34)
+                                if ds == DOOR_CLOSED:
+                                        return (110, 78, 48)
+                                if ds == DOOR_AJAR:
+                                        return (165, 125, 70)
+                                return (200, 160, 90)
+                        if et == EDGE_WINDOW_VIEW:
+                                return (80, 110, 145)
+                        return (168, 168, 178)
 
+                def _shaded_rgba(self, base_rgb, side, dist, extra=1.0):
                         shade = max(0.22, 1.0 - (dist / 14.0))
                         if side == 'vertical':
                                 shade *= 0.90
@@ -205,9 +239,120 @@ init -10 python:
                                 shade *= 0.78
                         elif side == 'object':
                                 shade *= 0.70
+                        shade *= extra
+                        if shade < 0.08:
+                                shade = 0.08
+                        if shade > 1.0:
+                                shade = 1.0
+                        return (
+                                int(base_rgb[0] * shade),
+                                int(base_rgb[1] * shade),
+                                int(base_rgb[2] * shade),
+                                255,
+                        )
 
-                        return (int(base[0] * shade), int(base[1] * shade), int(base[2] * shade), 255)
+                def _wall_color(self, edge, side, dist):
+                        return self._shaded_rgba(self._wall_base_rgb(edge), side, dist, 1.0)
 
+                def _wall_metrics(self, corrected, screen_h, horizon_y, height_ratio=1.0):
+                        effective_dist = (corrected * max(0.05, float(self.cell_size_world))) + max(0.0, float(self.distance_soften))
+                        if effective_dist < self.near_clip_dist:
+                                effective_dist = self.near_clip_dist
+                        wall_h = int((screen_h * self.proj_scale * max(0.05, float(self.wall_height_world)) * max(0.05, float(height_ratio))) / effective_dist)
+                        if wall_h > screen_h:
+                                wall_h = screen_h
+                        y0 = int(horizon_y - (wall_h / 2.0))
+                        return y0, wall_h
+
+                def _door_hinge_left(self, hit):
+                        edge_dir = hit.get('edge_dir', 'E')
+                        return edge_dir in ('E', 'N')
+
+                def _door_leaf_span(self, door_state, hinge_left):
+                        import math
+                        frame = float(self.door_frame_ratio)
+                        if frame < 0.04:
+                                frame = 0.04
+                        if frame > 0.30:
+                                frame = 0.30
+                        opening_left = frame
+                        opening_right = 1.0 - frame
+                        opening_w = max(0.08, opening_right - opening_left)
+
+                        if door_state in (DOOR_AJAR, DOOR_OPEN):
+                                angle_deg = float(self.door_ajar_angle_deg if door_state == DOOR_AJAR else max(65.0, self.door_ajar_angle_deg + 34.0))
+                                if angle_deg < 0.0:
+                                        angle_deg = 0.0
+                                if angle_deg > 89.0:
+                                        angle_deg = 89.0
+                                proj_w = opening_w * math.cos(math.radians(angle_deg))
+                                proj_w = max(0.03, min(opening_w, proj_w))
+                                if hinge_left:
+                                        return opening_left, opening_left + proj_w
+                                return opening_right - proj_w, opening_right
+
+                        return opening_left, opening_right
+
+                def _door_column_layers(self, hit, corrected, screen_h, horizon_y, far_hit=None, far_corrected=None):
+                        edge = hit.get('edge') or {}
+                        side = hit.get('side')
+                        door_state = _door_state(edge)
+                        hit_u = self._clamp01(hit.get('edge_u', 0.5))
+                        hinge_left = self._door_hinge_left(hit)
+
+                        wall_y0, wall_h = self._wall_metrics(corrected, screen_h, horizon_y, 1.0)
+                        door_y0, door_h = self._wall_metrics(corrected, screen_h, horizon_y, float(self.door_height_ratio))
+                        door_y1 = wall_y0 + wall_h
+                        door_y0 = door_y1 - door_h
+
+                        base_wall = self._wall_base_rgb({'type': EDGE_WALL})
+                        base_door = self._wall_base_rgb(edge)
+
+                        frame = float(self.door_frame_ratio)
+                        if frame < 0.04:
+                                frame = 0.04
+                        if frame > 0.30:
+                                frame = 0.30
+
+                        leaf_l, leaf_r = self._door_leaf_span(door_state, hinge_left)
+                        is_side_frame = (hit_u <= frame) or (hit_u >= (1.0 - frame))
+                        is_leaf = (leaf_l <= hit_u <= leaf_r)
+                        gap_open = (not is_side_frame) and (not is_leaf)
+
+                        layers = []
+
+                        if far_hit is not None and far_corrected is not None:
+                                fy0, fh = self._wall_metrics(far_corrected, screen_h, horizon_y, 1.0)
+                                layers.append((self._wall_color(far_hit.get('edge'), far_hit.get('side'), far_corrected), fy0, fh))
+
+                        wall_rgba = self._shaded_rgba(base_wall, side, corrected, 1.0)
+                        lintel_rgba = self._shaded_rgba(base_wall, side, corrected, 0.88)
+                        frame_rgba = self._shaded_rgba(base_wall, side, corrected, 0.80)
+
+                        door_dark = 1.0 - (float(self.door_inset_ratio) * 0.45)
+                        if door_dark < 0.60:
+                                door_dark = 0.60
+
+                        if is_side_frame:
+                                layers.append((frame_rgba, wall_y0, wall_h))
+                                return layers
+
+                        if door_y0 > wall_y0:
+                                layers.append((lintel_rgba, wall_y0, door_y0 - wall_y0))
+
+                        if is_leaf:
+                                if hinge_left:
+                                        local_u = (hit_u - leaf_l) / max(0.001, (leaf_r - leaf_l))
+                                else:
+                                        local_u = (leaf_r - hit_u) / max(0.001, (leaf_r - leaf_l))
+                                depth_mul = door_dark * (0.88 + (0.12 * local_u))
+                                if door_state in (DOOR_AJAR, DOOR_OPEN):
+                                        depth_mul *= 0.92
+                                layers.append((self._shaded_rgba(base_door, side, corrected, depth_mul), door_y0, door_h))
+                        elif not gap_open:
+                                layers.append((wall_rgba, wall_y0, wall_h))
+
+                        return layers
                 def _record_render_ms(self, ms):
                         self.render_ms_last = float(ms)
                         self._render_ms_hist.append(float(ms))
@@ -256,27 +401,34 @@ init -10 python:
                                 hit = self._cast_ray(ray_ang)
 
                                 corrected = max(self.near_clip_dist, hit['dist'] * math.cos(ray_ang - base_ang))
+                                wall_y0, wall_h = self._wall_metrics(corrected, h, horizon_y, 1.0)
 
-                                effective_dist = (corrected * max(0.05, float(self.cell_size_world))) + max(0.0, float(self.distance_soften))
-                                if effective_dist < self.near_clip_dist:
-                                        effective_dist = self.near_clip_dist
+                                edge = hit.get('edge') or {}
+                                layers = None
 
-                                wall_h = int((h * self.proj_scale * max(0.05, float(self.wall_height_world))) / effective_dist)
-                                if wall_h > h:
-                                        wall_h = h
+                                if edge.get('type') == EDGE_DOOR:
+                                        far_hit = None
+                                        far_corrected = None
+                                        if _door_state(edge) in (DOOR_AJAR, DOOR_OPEN) and ('hit_x' in hit) and ('hit_y' in hit):
+                                                eps = max(0.03, self.ray_step * 1.2)
+                                                far_hit = self._cast_ray_from(
+                                                        ray_ang,
+                                                        hit['hit_x'] + (math.cos(ray_ang) * eps),
+                                                        hit['hit_y'] + (math.sin(ray_ang) * eps),
+                                                )
+                                                far_total_dist = hit['dist'] + eps + max(0.0, far_hit['dist'])
+                                                far_corrected = max(self.near_clip_dist, far_total_dist * math.cos(ray_ang - base_ang))
+                                        layers = self._door_column_layers(hit, corrected, h, horizon_y, far_hit=far_hit, far_corrected=far_corrected)
+                                else:
+                                        layers = [(self._wall_color(edge, hit.get('side'), corrected), wall_y0, wall_h)]
 
-                                y0 = int(horizon_y - (wall_h / 2.0))
-
-                                self._blit_solid(
-                                        r,
-                                        self._wall_color(hit.get('edge'), hit.get('side'), corrected),
-                                        sx0, y0, sx1 - sx0, wall_h, st, at
-                                )
+                                for color, ly, lh in layers:
+                                        self._blit_solid(r, color, sx0, ly, sx1 - sx0, lh, st, at)
 
                                 if wall_h < h:
                                         fog = int(max(0, min(90, corrected * 6)))
-                                        self._blit_solid(r, (0, 0, 0, min(90, fog)), sx0, 0, sx1 - sx0, y0, st, at)
-                                        self._blit_solid(r, (0, 0, 0, min(110, fog + 10)), sx0, y0 + wall_h, sx1 - sx0, h - (y0 + wall_h), st, at)
+                                        self._blit_solid(r, (0, 0, 0, min(90, fog)), sx0, 0, sx1 - sx0, wall_y0, st, at)
+                                        self._blit_solid(r, (0, 0, 0, min(110, fog + 10)), sx0, wall_y0 + wall_h, sx1 - sx0, h - (wall_y0 + wall_h), st, at)
 
                         cx = w // 2
                         cy = horizon_y

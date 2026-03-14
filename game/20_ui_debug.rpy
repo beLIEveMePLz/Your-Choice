@@ -159,6 +159,30 @@ screen debug_screen(app):
 
                     hbox:
                         spacing 6
+                        text ("DoorH: %.2f" % (_rv["door_height_ratio"] if _rv else 0.0)) style "ui_text_small"
+                        textbutton "-" action Function(app.tune_doorh_minus) style "ui_button" text_style "ui_button_text"
+                        textbutton "+" action Function(app.tune_doorh_plus) style "ui_button" text_style "ui_button_text"
+
+                    hbox:
+                        spacing 6
+                        text ("Frame: %.2f" % (_rv["door_frame_ratio"] if _rv else 0.0)) style "ui_text_small"
+                        textbutton "-" action Function(app.tune_frame_minus) style "ui_button" text_style "ui_button_text"
+                        textbutton "+" action Function(app.tune_frame_plus) style "ui_button" text_style "ui_button_text"
+
+                    hbox:
+                        spacing 6
+                        text ("Inset: %.2f" % (_rv["door_inset_ratio"] if _rv else 0.0)) style "ui_text_small"
+                        textbutton "-" action Function(app.tune_inset_minus) style "ui_button" text_style "ui_button_text"
+                        textbutton "+" action Function(app.tune_inset_plus) style "ui_button" text_style "ui_button_text"
+
+                    hbox:
+                        spacing 6
+                        text ("Ajar: %.1f" % (_rv["door_ajar_angle_deg"] if _rv else 0.0)) style "ui_text_small"
+                        textbutton "-" action Function(app.tune_ajar_minus) style "ui_button" text_style "ui_button_text"
+                        textbutton "+" action Function(app.tune_ajar_plus) style "ui_button" text_style "ui_button_text"
+
+                    hbox:
+                        spacing 6
                         text ("Cols: %d" % (_rv["columns_cap"] if _rv else 0)) style "ui_text_small"
                         textbutton "-" action Function(app.tune_cols_minus) style "ui_button" text_style "ui_button_text"
                         textbutton "+" action Function(app.tune_cols_plus) style "ui_button" text_style "ui_button_text"
