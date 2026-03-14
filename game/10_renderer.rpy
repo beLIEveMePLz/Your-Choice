@@ -293,7 +293,7 @@ init -10 python:
 
                         return opening_left, opening_right
 
-                def _door_column_layers(self, hit, corrected, screen_h, horizon_y, far_hit=None, far_corrected=None):
+                def _door_column_layers(self, hit, corrected, screen_h, horizon_y):
                         edge = hit.get('edge') or {}
                         side = hit.get('side')
                         door_state = _door_state(edge)
@@ -320,10 +320,6 @@ init -10 python:
                         gap_open = (not is_side_frame) and (not is_leaf)
 
                         layers = []
-
-                        if far_hit is not None and far_corrected is not None:
-                                fy0, fh = self._wall_metrics(far_corrected, screen_h, horizon_y, 1.0)
-                                layers.append((self._wall_color(far_hit.get('edge'), far_hit.get('side'), far_corrected), fy0, fh))
 
                         wall_rgba = self._shaded_rgba(base_wall, side, corrected, 1.0)
                         lintel_rgba = self._shaded_rgba(base_wall, side, corrected, 0.88)
@@ -353,6 +349,41 @@ init -10 python:
                                 layers.append((wall_rgba, wall_y0, wall_h))
 
                         return layers
+
+                def _is_passthrough_door_hit(self, hit):
+                        edge = (hit or {}).get('edge') or {}
+                        if edge.get('type') != EDGE_DOOR:
+                                return False
+                        return _door_state(edge) in (DOOR_AJAR, DOOR_OPEN) and ('hit_x' in hit) and ('hit_y' in hit)
+
+                def _cast_ray_chain(self, ang):
+                        import math
+                        p = self.world.player
+                        start_x = p.x + 0.5
+                        start_y = p.y + 0.5
+                        eps = max(0.03, self.ray_step * 1.2)
+                        total_dist = 0.0
+                        chain = []
+
+                        for _ in range(6):
+                                hit = self._cast_ray_from(ang, start_x, start_y)
+                                local_dist = max(0.02, float(hit.get('dist', self.max_ray_dist)))
+                                total_dist += local_dist
+
+                                h = dict(hit)
+                                h['dist_total'] = total_dist
+                                chain.append(h)
+
+                                if total_dist >= self.max_ray_dist:
+                                        break
+                                if not self._is_passthrough_door_hit(hit):
+                                        break
+
+                                start_x = hit['hit_x'] + (math.cos(ang) * eps)
+                                start_y = hit['hit_y'] + (math.sin(ang) * eps)
+                                total_dist += eps
+
+                        return chain
                 def _record_render_ms(self, ms):
                         self.render_ms_last = float(ms)
                         self._render_ms_hist.append(float(ms))
@@ -398,29 +429,22 @@ init -10 python:
 
                                 u = ((ci + 0.5) / float(cols)) * 2.0 - 1.0
                                 ray_ang = base_ang + (u * (fov * 0.5))
-                                hit = self._cast_ray(ray_ang)
+                                hit_chain = self._cast_ray_chain(ray_ang)
+                                near_hit = hit_chain[0]
 
-                                corrected = max(self.near_clip_dist, hit['dist'] * math.cos(ray_ang - base_ang))
+                                corrected = max(self.near_clip_dist, near_hit['dist_total'] * math.cos(ray_ang - base_ang))
                                 wall_y0, wall_h = self._wall_metrics(corrected, h, horizon_y, 1.0)
 
-                                edge = hit.get('edge') or {}
-                                layers = None
+                                layers = []
 
-                                if edge.get('type') == EDGE_DOOR:
-                                        far_hit = None
-                                        far_corrected = None
-                                        if _door_state(edge) in (DOOR_AJAR, DOOR_OPEN) and ('hit_x' in hit) and ('hit_y' in hit):
-                                                eps = max(0.03, self.ray_step * 1.2)
-                                                far_hit = self._cast_ray_from(
-                                                        ray_ang,
-                                                        hit['hit_x'] + (math.cos(ray_ang) * eps),
-                                                        hit['hit_y'] + (math.sin(ray_ang) * eps),
-                                                )
-                                                far_total_dist = hit['dist'] + eps + max(0.0, far_hit['dist'])
-                                                far_corrected = max(self.near_clip_dist, far_total_dist * math.cos(ray_ang - base_ang))
-                                        layers = self._door_column_layers(hit, corrected, h, horizon_y, far_hit=far_hit, far_corrected=far_corrected)
-                                else:
-                                        layers = [(self._wall_color(edge, hit.get('side'), corrected), wall_y0, wall_h)]
+                                for hit in reversed(hit_chain):
+                                        hit_corrected = max(self.near_clip_dist, hit['dist_total'] * math.cos(ray_ang - base_ang))
+                                        edge = hit.get('edge') or {}
+                                        if edge.get('type') == EDGE_DOOR:
+                                                layers.extend(self._door_column_layers(hit, hit_corrected, h, horizon_y))
+                                        else:
+                                                ly0, lh = self._wall_metrics(hit_corrected, h, horizon_y, 1.0)
+                                                layers.append((self._wall_color(edge, hit.get('side'), hit_corrected), ly0, lh))
 
                                 for color, ly, lh in layers:
                                         self._blit_solid(r, color, sx0, ly, sx1 - sx0, lh, st, at)
