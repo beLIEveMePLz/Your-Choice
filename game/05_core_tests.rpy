@@ -140,6 +140,42 @@ init -20 python:
                 rep = r.surface_core_checker()
                 return bool(rep.get("ok", False))
 
+
+        def _test_renderer_surface_palette_changes_between_zones():
+                W = yc_generate_vertical_house_world()
+                rr = make_renderer(W)
+
+                W.player.x = 2
+                W.player.y = 2
+                p_living = rr._active_surface_palette()
+
+                W.player.x = 10
+                W.player.y = 2
+                p_kitchen = rr._active_surface_palette()
+
+                return p_living.get("floor_rgba") != p_kitchen.get("floor_rgba")
+
+        def _test_renderer_surface_palette_exterior_sky_fallback():
+                W = generate_demo_room()
+                r = W.room
+                if not hasattr(r, "define_zone"):
+                        return False
+
+                z = r.define_zone(91, name="yard", zone_type="yard", level_id=0, tags=["exterior", "yard"], is_interior=False)
+                if z is None:
+                        return False
+
+                for y in range(r.h):
+                        for x in range(r.w):
+                                r.set_zone(x, y, 91)
+
+                if hasattr(r, "rebuild_zone_memberships"):
+                        r.rebuild_zone_memberships()
+
+                rr = make_renderer(W)
+                pal = rr._active_surface_palette()
+                return pal.get("ceiling_rgba") == (90, 118, 154, 255)
+
         def _test_view_key_match():
                 W = generate_demo_room()
                 k1 = W.state_view_key()
@@ -177,6 +213,8 @@ init -20 python:
         add("zone_surface_profile_setters_roundtrip", _test_zone_surface_profile_setters_roundtrip, "Zone floor/ceiling profile setters roundtrip material ids.")
         add("vertical_house_surface_profiles_present", _test_vertical_house_surface_profiles_present, "Vertical house generator assigns floor and ceiling profiles to its zones.")
         add("vertical_house_surface_core_checker", _test_vertical_house_surface_core_checker, "Surface checker passes on generated vertical house.")
+        add("renderer_surface_palette_changes_between_zones", _test_renderer_surface_palette_changes_between_zones, "Renderer picks different floor colors for different active zones.")
+        add("renderer_surface_palette_exterior_sky_fallback", _test_renderer_surface_palette_exterior_sky_fallback, "Exterior zones without a ceiling profile fall back to sky color.")
         add("house_floor_closed_door_blocks", _test_house_floor_closed_door_blocks, "Closed door blocks corridor-to-room movement.")
         add("house_floor_open_door_allows", _test_house_floor_open_door_allows, "Opened door allows corridor-to-room movement.")
         add("view_key_match", _test_view_key_match, "View key is stable without changes.")

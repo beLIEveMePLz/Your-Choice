@@ -90,6 +90,9 @@ init -10 python:
                                 self.door_frame_ratio,
                                 self.door_inset_ratio,
                                 self.door_ajar_angle_deg,
+                                tuple(self._active_surface_palette().get('floor_rgba', ())),
+                                tuple(self._active_surface_palette().get('ceiling_rgba', ())),
+                                self._active_surface_palette().get('zone_id'),
                         )
 
                 def _blit_solid(self, r, color, x, y, ww, hh, st, at):
@@ -98,6 +101,112 @@ init -10 python:
                         s = rp.store.Solid(color, xysize=(ww, hh))
                         sr = render(s, ww, hh, st, at)
                         r.blit(sr, (int(x), int(y)))
+
+                def _rgba_from_any(self, value, fallback=(96, 96, 96, 255)):
+                        try:
+                                if isinstance(value, (list, tuple)):
+                                        if len(value) >= 4:
+                                                return (int(value[0]), int(value[1]), int(value[2]), int(value[3]))
+                                        if len(value) >= 3:
+                                                return (int(value[0]), int(value[1]), int(value[2]), 255)
+                                if isinstance(value, str):
+                                        s = value.strip()
+                                        if s.startswith("#"):
+                                                s = s[1:]
+                                        if len(s) == 3:
+                                                s = (s[0] * 2) + (s[1] * 2) + (s[2] * 2)
+                                        if len(s) == 6:
+                                                return (
+                                                        int(s[0:2], 16),
+                                                        int(s[2:4], 16),
+                                                        int(s[4:6], 16),
+                                                        255,
+                                                )
+                                        if len(s) == 8:
+                                                return (
+                                                        int(s[0:2], 16),
+                                                        int(s[2:4], 16),
+                                                        int(s[4:6], 16),
+                                                        int(s[6:8], 16),
+                                                )
+                        except Exception:
+                                pass
+                        return fallback
+
+                def _mul_rgba(self, rgba, mul=1.0, alpha_mul=1.0):
+                        m = float(mul)
+                        a = float(alpha_mul)
+                        if m < 0.0:
+                                m = 0.0
+                        if a < 0.0:
+                                a = 0.0
+                        if a > 1.0:
+                                a = 1.0
+                        return (
+                                max(0, min(255, int(rgba[0] * m))),
+                                max(0, min(255, int(rgba[1] * m))),
+                                max(0, min(255, int(rgba[2] * m))),
+                                max(0, min(255, int(rgba[3] * a))),
+                        )
+
+                def _active_zone(self):
+                        room = getattr(self.world, "room", None)
+                        player = getattr(self.world, "player", None)
+                        if room is None or player is None:
+                                return None
+                        if hasattr(room, "get_zone_at"):
+                                return room.get_zone_at(player.x, player.y)
+                        zid = room.get_zone_id(player.x, player.y) if hasattr(room, "get_zone_id") else None
+                        if zid is None:
+                                return None
+                        return room.get_zone(zid) if hasattr(room, "get_zone") else None
+
+                def _active_surface_palette(self):
+                        zone = self._active_zone()
+
+                        ceiling_rgba = (18, 22, 30, 255)
+                        floor_rgba = (24, 26, 32, 255)
+
+                        if zone is not None:
+                                fp = getattr(zone, "floor_profile", None)
+                                cp = getattr(zone, "ceiling_profile", None)
+                                is_interior = bool(getattr(zone, "is_interior", True))
+
+                                if fp is not None:
+                                        floor_rgba = self._rgba_from_any(
+                                                getattr(fp, "color", None),
+                                                fallback=floor_rgba,
+                                        )
+                                        floor_rgba = self._mul_rgba(
+                                                floor_rgba,
+                                                getattr(fp, "shade", 1.0),
+                                                1.0,
+                                        )
+
+                                if cp is not None:
+                                        ceiling_rgba = self._rgba_from_any(
+                                                getattr(cp, "color", None),
+                                                fallback=ceiling_rgba,
+                                        )
+                                        ceiling_rgba = self._mul_rgba(
+                                                ceiling_rgba,
+                                                getattr(cp, "shade", 1.0),
+                                                1.0,
+                                        )
+                                elif not is_interior:
+                                        ceiling_rgba = (90, 118, 154, 255)
+
+                        return {
+                                "zone_id": getattr(zone, "zone_id", None),
+                                "floor_material": getattr(getattr(zone, "floor_profile", None), "material_id", None),
+                                "ceiling_material": getattr(getattr(zone, "ceiling_profile", None), "material_id", None),
+                                "floor_rgba": floor_rgba,
+                                "floor_horizon_rgba": self._mul_rgba(floor_rgba, 0.72, 1.0),
+                                "floor_near_rgba": self._mul_rgba(floor_rgba, 1.06, 1.0),
+                                "ceiling_rgba": ceiling_rgba,
+                                "ceiling_horizon_rgba": self._mul_rgba(ceiling_rgba, 0.82, 1.0),
+                                "horizon_line_rgba": self._mul_rgba(ceiling_rgba, 0.55, 0.70),
+                        }
 
                 def _facing_angle_rad(self):
                         p = self.world.player
@@ -412,9 +521,24 @@ init -10 python:
                         if horizon_y > h - 24:
                                 horizon_y = h - 24
 
-                        self._blit_solid(r, (18, 22, 30, 255), 0, 0, w, horizon_y, st, at)
-                        self._blit_solid(r, (10, 12, 16, 255), 0, horizon_y, w, h - horizon_y, st, at)
-                        self._blit_solid(r, (28, 32, 40, 160), 0, horizon_y - 4, w, 8, st, at)
+                        palette = self._active_surface_palette()
+
+                        self._blit_solid(r, palette['ceiling_rgba'], 0, 0, w, horizon_y, st, at)
+                        self._blit_solid(r, palette['floor_rgba'], 0, horizon_y, w, h - horizon_y, st, at)
+
+                        band_top_h = min(18, max(0, horizon_y))
+                        if band_top_h > 0:
+                                self._blit_solid(r, palette['ceiling_horizon_rgba'], 0, horizon_y - band_top_h, w, band_top_h, st, at)
+
+                        band_bottom_h = min(18, max(0, h - horizon_y))
+                        if band_bottom_h > 0:
+                                self._blit_solid(r, palette['floor_horizon_rgba'], 0, horizon_y, w, band_bottom_h, st, at)
+
+                        near_floor_h = min(22, max(0, h - horizon_y))
+                        if near_floor_h > 0:
+                                self._blit_solid(r, palette['floor_near_rgba'], 0, h - near_floor_h, w, near_floor_h, st, at)
+
+                        self._blit_solid(r, palette['horizon_line_rgba'], 0, max(0, horizon_y - 2), w, min(4, h), st, at)
 
                         cols = min(self.columns_cap, max(96, w // 6))
                         col_w = max(1, int(math.ceil(float(w) / cols)))
