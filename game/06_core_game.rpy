@@ -48,8 +48,17 @@ init -20 python:
                 def bind_renderer(self, renderer_obj):
                         self.renderer = renderer_obj
                         self.view = renderer_obj
-                        self._notify_renderer("bind", force=True)
-                        self._log("Renderer bound")
+
+                        loaded_saved = False
+                        try:
+                                loaded_saved = self.load_saved_render_tune(announce=False)
+                        except Exception:
+                                loaded_saved = False
+
+                        if not loaded_saved:
+                                self._notify_renderer("bind", force=True)
+
+                        self._log("Renderer bound%s" % (" + saved tune" if loaded_saved else ""))
                         self._refresh_ui()
                         return True
 
@@ -118,10 +127,125 @@ init -20 python:
                                 "wall_height_world": float(getattr(r, "wall_height_world", 1.0)),
                                 "cell_size_world": float(getattr(r, "cell_size_world", 1.0)),
                                 "distance_soften": float(getattr(r, "distance_soften", 0.2)),
+                                "door_height_ratio": float(getattr(r, "door_height_ratio", 0.78)),
+                                "door_frame_ratio": float(getattr(r, "door_frame_ratio", 0.12)),
+                                "door_inset_ratio": float(getattr(r, "door_inset_ratio", 0.18)),
+                                "door_ajar_angle_deg": float(getattr(r, "door_ajar_angle_deg", 36.0)),
                                 "columns_cap": int(getattr(r, "columns_cap", 220)),
                                 "render_ms_last": float(getattr(r, "render_ms_last", 0.0)),
                                 "render_ms_avg": float(getattr(r, "render_ms_avg", 0.0)),
                         }
+
+                def _renderer_tune_keys(self):
+                        return [
+                                "fov_deg",
+                                "proj_scale",
+                                "near_clip_dist",
+                                "wall_height_world",
+                                "cell_size_world",
+                                "distance_soften",
+                                "door_height_ratio",
+                                "door_frame_ratio",
+                                "door_inset_ratio",
+                                "door_ajar_angle_deg",
+                                "columns_cap",
+                        ]
+
+                def _get_saved_renderer_vals(self):
+                        try:
+                                p = getattr(rp.store, "persistent", None)
+                                if p is None:
+                                        return None
+                                data = getattr(p, "yc_render_tune_v1", None)
+                                if not isinstance(data, dict):
+                                        return None
+
+                                out = {}
+                                for k in self._renderer_tune_keys():
+                                        if k in data:
+                                                out[k] = data[k]
+                                if not out:
+                                        return None
+                                return out
+                        except Exception as e:
+                                self._log("Render tune persistent read EXC: %r" % (e,))
+                                return None
+
+                def has_saved_render_tune(self):
+                        return self._get_saved_renderer_vals() is not None
+
+                def save_render_tune(self, announce=True):
+                        vals = self._renderer_vals()
+                        if not vals:
+                                if announce:
+                                        self._log("Render tune save skipped: no renderer")
+                                self._refresh_ui()
+                                return False
+
+                        data = {}
+                        for k in self._renderer_tune_keys():
+                                if k in vals:
+                                        data[k] = vals[k]
+
+                        try:
+                                p = getattr(rp.store, "persistent", None)
+                                if p is None:
+                                        if announce:
+                                                self._log("Render tune save skipped: persistent unavailable")
+                                        self._refresh_ui()
+                                        return False
+
+                                setattr(p, "yc_render_tune_v1", data)
+                                try:
+                                        rp.save_persistent()
+                                except Exception:
+                                        pass
+
+                                if announce:
+                                        self._log("Render tune saved")
+                                self._refresh_ui()
+                                return True
+
+                        except Exception as e:
+                                self._log("Render tune save EXC: %r" % (e,))
+                                self._refresh_ui()
+                                return False
+
+                def load_saved_render_tune(self, announce=True):
+                        data = self._get_saved_renderer_vals()
+                        if not data:
+                                if announce:
+                                        self._log("Render tune load skipped: no saved profile")
+                                self._refresh_ui()
+                                return False
+
+                        ok = self._apply_renderer_vals(data, "render_load_saved")
+                        if ok and announce:
+                                self._log("Render tune loaded")
+                        return ok
+
+                def clear_saved_render_tune(self):
+                        try:
+                                p = getattr(rp.store, "persistent", None)
+                                if p is None:
+                                        self._log("Render tune clear skipped: persistent unavailable")
+                                        self._refresh_ui()
+                                        return False
+
+                                setattr(p, "yc_render_tune_v1", None)
+                                try:
+                                        rp.save_persistent()
+                                except Exception:
+                                        pass
+
+                                self._log("Render tune saved profile cleared")
+                                self._refresh_ui()
+                                return True
+
+                        except Exception as e:
+                                self._log("Render tune clear EXC: %r" % (e,))
+                                self._refresh_ui()
+                                return False
 
                 def _apply_renderer_vals(self, updates, reason="render_tune"):
                         r = self.renderer
@@ -164,6 +288,30 @@ init -20 python:
                                         if v < 0.0: v = 0.0
                                         if v > 2.0: v = 2.0
                                         r.distance_soften = v
+
+                                if "door_height_ratio" in updates and hasattr(r, "door_height_ratio"):
+                                        v = float(updates["door_height_ratio"])
+                                        if v < 0.45: v = 0.45
+                                        if v > 0.98: v = 0.98
+                                        r.door_height_ratio = v
+
+                                if "door_frame_ratio" in updates and hasattr(r, "door_frame_ratio"):
+                                        v = float(updates["door_frame_ratio"])
+                                        if v < 0.04: v = 0.04
+                                        if v > 0.30: v = 0.30
+                                        r.door_frame_ratio = v
+
+                                if "door_inset_ratio" in updates and hasattr(r, "door_inset_ratio"):
+                                        v = float(updates["door_inset_ratio"])
+                                        if v < 0.0: v = 0.0
+                                        if v > 0.60: v = 0.60
+                                        r.door_inset_ratio = v
+
+                                if "door_ajar_angle_deg" in updates and hasattr(r, "door_ajar_angle_deg"):
+                                        v = float(updates["door_ajar_angle_deg"])
+                                        if v < 0.0: v = 0.0
+                                        if v > 89.0: v = 89.0
+                                        r.door_ajar_angle_deg = v
 
                                 if "columns_cap" in updates and hasattr(r, "columns_cap"):
                                         v = int(updates["columns_cap"])
@@ -228,6 +376,38 @@ init -20 python:
                         vals = self._renderer_vals()
                         if vals: self._apply_renderer_vals({"distance_soften": vals["distance_soften"] + 0.05}, "soft+")
 
+                def tune_doorh_minus(self):
+                        vals = self._renderer_vals()
+                        if vals: self._apply_renderer_vals({"door_height_ratio": vals["door_height_ratio"] - 0.02}, "doorh-")
+
+                def tune_doorh_plus(self):
+                        vals = self._renderer_vals()
+                        if vals: self._apply_renderer_vals({"door_height_ratio": vals["door_height_ratio"] + 0.02}, "doorh+")
+
+                def tune_frame_minus(self):
+                        vals = self._renderer_vals()
+                        if vals: self._apply_renderer_vals({"door_frame_ratio": vals["door_frame_ratio"] - 0.01}, "frame-")
+
+                def tune_frame_plus(self):
+                        vals = self._renderer_vals()
+                        if vals: self._apply_renderer_vals({"door_frame_ratio": vals["door_frame_ratio"] + 0.01}, "frame+")
+
+                def tune_inset_minus(self):
+                        vals = self._renderer_vals()
+                        if vals: self._apply_renderer_vals({"door_inset_ratio": vals["door_inset_ratio"] - 0.02}, "inset-")
+
+                def tune_inset_plus(self):
+                        vals = self._renderer_vals()
+                        if vals: self._apply_renderer_vals({"door_inset_ratio": vals["door_inset_ratio"] + 0.02}, "inset+")
+
+                def tune_ajar_minus(self):
+                        vals = self._renderer_vals()
+                        if vals: self._apply_renderer_vals({"door_ajar_angle_deg": vals["door_ajar_angle_deg"] - 3.0}, "ajar-")
+
+                def tune_ajar_plus(self):
+                        vals = self._renderer_vals()
+                        if vals: self._apply_renderer_vals({"door_ajar_angle_deg": vals["door_ajar_angle_deg"] + 3.0}, "ajar+")
+
                 def tune_cols_minus(self):
                         vals = self._renderer_vals()
                         if vals:
@@ -250,6 +430,10 @@ init -20 python:
                                 "wall_height_world": 1.0,
                                 "cell_size_world": 1.0,
                                 "distance_soften": 0.20,
+                                "door_height_ratio": 0.78,
+                                "door_frame_ratio": 0.12,
+                                "door_inset_ratio": 0.18,
+                                "door_ajar_angle_deg": 36.0,
                                 "columns_cap": 220,
                         }, "render_reset")
 
@@ -261,30 +445,21 @@ init -20 python:
                                 "wall_height_world": 1.0,
                                 "cell_size_world": 1.25,
                                 "distance_soften": 0.35,
+                                "door_height_ratio": 0.80,
+                                "door_frame_ratio": 0.12,
+                                "door_inset_ratio": 0.22,
+                                "door_ajar_angle_deg": 38.0,
                                 "columns_cap": 320,
                         }, "render_home")
 
-                def tune_render_scale_a(self):
-                        self._apply_renderer_vals({
-                                "fov_deg": 62.0,
-                                "proj_scale": 0.74,
-                                "near_clip_dist": 0.16,
-                                "wall_height_world": 3.20,
-                                "cell_size_world": 0.78,
-                                "distance_soften": 0.12,
-                                "columns_cap": 320,
-                        }, "render_scale_a")
+                def tune_render_save(self):
+                        self.save_render_tune(announce=True)
 
-                def tune_render_scale_b(self):
-                        self._apply_renderer_vals({
-                                "fov_deg": 60.0,
-                                "proj_scale": 0.78,
-                                "near_clip_dist": 0.15,
-                                "wall_height_world": 3.50,
-                                "cell_size_world": 0.72,
-                                "distance_soften": 0.10,
-                                "columns_cap": 320,
-                        }, "render_scale_b")
+                def tune_render_load(self):
+                        self.load_saved_render_tune(announce=True)
+
+                def tune_render_clear_saved(self):
+                        self.clear_saved_render_tune()
 
                 # --------------------------------------------------
                 # HUD / debug info
@@ -309,6 +484,7 @@ init -20 python:
                                 lines.append("FOV %.1f | Proj %.2f | Near %.2f" % (vals["fov_deg"], vals["proj_scale"], vals["near_clip_dist"]))
                                 lines.append("WallH %.2f | CellM %.2f | Soft %.2f" % (vals["wall_height_world"], vals["cell_size_world"], vals["distance_soften"]))
                                 lines.append("Cols %d | Render %.2f ms | Avg %.2f ms" % (vals["columns_cap"], vals["render_ms_last"], vals["render_ms_avg"]))
+                                lines.append("RenderTune saved: %s" % ("YES" if self.has_saved_render_tune() else "NO"))
 
                         return lines
 
@@ -399,19 +575,34 @@ init -20 python:
                         return None
 
                 def do_backward(self):
-                        facing = self.world.player.facing
-                        d = OPPOSITE.get(facing, "S")
-                        return self._move_world_dir(d, "Back")
+                        try:
+                                facing = self.world.player.facing
+                                d = OPPOSITE.get(facing, "S")
+                                self._move_world_dir(d, "Back")
+                        except Exception as e:
+                                self._log("Back EXC: %r" % (e,))
+                                self._refresh_ui()
+                        return None
 
                 def do_strafe_left(self):
-                        facing = self.world.player.facing
-                        d = LEFT_OF.get(facing, "W")
-                        return self._move_world_dir(d, "StrafeL")
+                        try:
+                                facing = self.world.player.facing
+                                d = LEFT_OF.get(facing, "W")
+                                self._move_world_dir(d, "StrafeL")
+                        except Exception as e:
+                                self._log("StrafeL EXC: %r" % (e,))
+                                self._refresh_ui()
+                        return None
 
                 def do_strafe_right(self):
-                        facing = self.world.player.facing
-                        d = RIGHT_OF.get(facing, "E")
-                        return self._move_world_dir(d, "StrafeR")
+                        try:
+                                facing = self.world.player.facing
+                                d = RIGHT_OF.get(facing, "E")
+                                self._move_world_dir(d, "StrafeR")
+                        except Exception as e:
+                                self._log("StrafeR EXC: %r" % (e,))
+                                self._refresh_ui()
+                        return None
 
                 def do_turn_left(self):
                         try:
@@ -610,9 +801,12 @@ init -20 python:
                                 return False
 
                 def do_interact(self):
-                        # unified action
-                        return self.do_door_toggle()
-
+                        try:
+                                self.do_door_toggle()
+                        except Exception as e:
+                                self._log("Interact EXC: %r" % (e,))
+                                self._refresh_ui()
+                        return None
 
                 def do_load_demo_hotkey(self):
                         return self.do_gen_demo_room()
