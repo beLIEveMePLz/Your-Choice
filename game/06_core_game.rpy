@@ -404,19 +404,25 @@ init -20 python:
                         self.view = None
                         self.renderer = None
 
-                        self.show_panel = True
                         self.show_controls = True
-                        self.show_status = True
                         self.show_map = True
-                        self.show_log = True
+                        self.show_log = False
                         self.show_tests = False
                         self.show_render_tune = False
                         self.show_generator_ui = False
+                        self.show_panel = False
+                        self.show_status = True
 
                         self.log = []
                         self.log_page_size = 10
-                        self.log_page_back = 0
+                        self.log_page_start = 0
                         self.test_results = []
+                        self.debug_token_colors = {
+                                "OK": "#57d957",
+                                "FAIL": "#ff5a5a",
+                                "ON": "#57d957",
+                                "OFF": "#ff5a5a",
+                        }
 
                         self._log("Game init OK")
                         self._log("World: %s" % self.world.room.name)
@@ -437,6 +443,83 @@ init -20 python:
                         except Exception:
                                 tick = 0
                         self.log.append("[t%s] %s" % (tick, msg))
+                        try:
+                                if self.log_page_start + int(self.log_page_size) >= max(0, len(self.log) - 1):
+                                        self.log_page_latest()
+                        except Exception:
+                                pass
+
+                def debug_markup_text(self, line):
+                        try:
+                                out = str(line)
+                        except Exception:
+                                out = "%r" % (line,)
+                        for token, color in getattr(self, "debug_token_colors", {}).items():
+                                out = out.replace(token, "{color=%s}%s{/color}" % (color, token))
+                        return out
+
+                def toggle_panel(self):
+                        self.show_panel = not getattr(self, "show_panel", True)
+                        self._refresh_ui()
+
+                def toggle_status(self):
+                        self.show_status = not getattr(self, "show_status", True)
+                        self._refresh_ui()
+
+                def _ensure_log_page_state(self):
+                        if not hasattr(self, "log_page_size") or int(getattr(self, "log_page_size", 10)) <= 0:
+                                self.log_page_size = 10
+                        if not hasattr(self, "log_page_start"):
+                                self.log_page_start = 0
+                        max_start = max(0, len(self.log) - int(self.log_page_size))
+                        self.log_page_start = max(0, min(int(self.log_page_start), max_start))
+
+                def log_page_latest(self):
+                        self._ensure_log_page_state()
+                        self.log_page_start = max(0, len(self.log) - int(self.log_page_size))
+                        self._refresh_ui()
+
+                def log_page_oldest(self):
+                        self._ensure_log_page_state()
+                        self.log_page_start = 0
+                        self._refresh_ui()
+
+                def log_page_older(self):
+                        self._ensure_log_page_state()
+                        self.log_page_start = max(0, int(self.log_page_start) - int(self.log_page_size))
+                        self._refresh_ui()
+
+                def log_page_newer(self):
+                        self._ensure_log_page_state()
+                        max_start = max(0, len(self.log) - int(self.log_page_size))
+                        self.log_page_start = min(max_start, int(self.log_page_start) + int(self.log_page_size))
+                        self._refresh_ui()
+
+                def can_log_page_older(self):
+                        self._ensure_log_page_state()
+                        return int(self.log_page_start) > 0
+
+                def can_log_page_newer(self):
+                        self._ensure_log_page_state()
+                        return int(self.log_page_start) + int(self.log_page_size) < len(self.log)
+
+                def log_rows_for_ui(self):
+                        self._ensure_log_page_state()
+                        start = int(self.log_page_start)
+                        end = min(len(self.log), start + int(self.log_page_size))
+                        rows = []
+                        for line in self.log[start:end]:
+                                rows.append(self.debug_markup_text(line))
+                        return rows
+
+                def log_page_label(self):
+                        self._ensure_log_page_state()
+                        total = len(self.log)
+                        if total <= 0:
+                                return "0-0 / 0"
+                        start = int(self.log_page_start)
+                        end = min(total, start + int(self.log_page_size))
+                        return "%d-%d / %d" % (start + 1, end, total)
 
                 def bind_renderer(self, renderer_obj):
                         self.renderer = renderer_obj
@@ -485,16 +568,8 @@ init -20 python:
                 # --------------------------------------------------
                 # UI toggles
                 # --------------------------------------------------
-                def toggle_panel(self):
-                        self.show_panel = not self.show_panel
-                        self._refresh_ui()
-
                 def toggle_controls(self):
                         self.show_controls = not self.show_controls
-                        self._refresh_ui()
-
-                def toggle_status(self):
-                        self.show_status = not self.show_status
                         self._refresh_ui()
 
                 def toggle_map(self):
@@ -867,72 +942,6 @@ init -20 python:
                         self.clear_saved_render_tune()
 
 
-                def debug_markup_text(self, text):
-                        try:
-                                s = str(text)
-                        except Exception:
-                                s = "%r" % (text,)
-                        import re
-                        s = re.sub(r"(?<!\w)FAIL(?!\w)", "{color=#ff5a5a}FAIL{/color}", s)
-                        s = re.sub(r"(?<!\w)OK(?!\w)", "{color=#57d957}OK{/color}", s)
-                        s = re.sub(r"(?<!\w)OFF(?!\w)", "{color=#ff5a5a}OFF{/color}", s)
-                        s = re.sub(r"(?<!\w)ON(?!\w)", "{color=#57d957}ON{/color}", s)
-                        return s
-
-                def _log_bounds(self):
-                        total = len(self.log)
-                        page_size = max(1, int(getattr(self, "log_page_size", 10)))
-                        max_back = max(0, (total - 1) // page_size) if total > 0 else 0
-                        if getattr(self, "log_page_back", 0) < 0:
-                                self.log_page_back = 0
-                        if self.log_page_back > max_back:
-                                self.log_page_back = max_back
-                        end = total - (self.log_page_back * page_size)
-                        if end < 0:
-                                end = 0
-                        start = max(0, end - page_size)
-                        return start, end, total, page_size, max_back
-
-                def log_rows_for_ui(self):
-                        start, end, total, page_size, max_back = self._log_bounds()
-                        rows = []
-                        for line in self.log[start:end]:
-                                rows.append(self.debug_markup_text(line))
-                        return rows
-
-                def log_page_label(self):
-                        start, end, total, page_size, max_back = self._log_bounds()
-                        if total <= 0:
-                                return "0 / 0"
-                        return "%d-%d / %d" % (start + 1, end, total)
-
-                def can_log_page_older(self):
-                        start, end, total, page_size, max_back = self._log_bounds()
-                        return start > 0
-
-                def can_log_page_newer(self):
-                        start, end, total, page_size, max_back = self._log_bounds()
-                        return self.log_page_back > 0
-
-                def log_page_older(self):
-                        if self.can_log_page_older():
-                                self.log_page_back += 1
-                        self._refresh_ui()
-
-                def log_page_newer(self):
-                        if self.can_log_page_newer():
-                                self.log_page_back -= 1
-                        self._refresh_ui()
-
-                def log_page_oldest(self):
-                        start, end, total, page_size, max_back = self._log_bounds()
-                        self.log_page_back = max_back
-                        self._refresh_ui()
-
-                def log_page_latest(self):
-                        self.log_page_back = 0
-                        self._refresh_ui()
-
                 def test_status_label(self, ok):
                         return "OK" if ok else "FAIL"
 
@@ -1015,6 +1024,51 @@ init -20 python:
                 # --------------------------------------------------
                 def ascii_map(self):
                         return self.world.room.ascii_overview(self.world.player)
+
+                def ascii_map_window(self, cell_radius=5):
+                        try:
+                                cell_radius = max(1, int(cell_radius))
+                        except Exception:
+                                cell_radius = 5
+                        char_span = (cell_radius * 4) + 3
+                        return self.ascii_map_fit(char_span, char_span)
+
+                def ascii_map_fit(self, max_cols, max_rows):
+                        try:
+                                raw = self.ascii_map()
+                                lines = raw.splitlines()
+                                if not lines:
+                                        return ""
+
+                                max_cols = max(1, int(max_cols))
+                                max_rows = max(1, int(max_rows))
+
+                                p = self.world.player
+                                center_x = int(p.x) * 2 + 1
+                                center_y = int(p.y) * 2 + 1
+
+                                full_w = max(len(line) for line in lines)
+                                full_h = len(lines)
+
+                                start_x = max(0, center_x - (max_cols // 2))
+                                start_y = max(0, center_y - (max_rows // 2))
+
+                                if start_x + max_cols > full_w:
+                                        start_x = max(0, full_w - max_cols)
+                                if start_y + max_rows > full_h:
+                                        start_y = max(0, full_h - max_rows)
+
+                                end_x = min(full_w, start_x + max_cols)
+                                end_y = min(full_h, start_y + max_rows)
+
+                                cropped = []
+                                for line in lines[start_y:end_y]:
+                                        padded = line.ljust(full_w)
+                                        cropped.append(padded[start_x:end_x].rstrip())
+
+                                return "\n".join(cropped)
+                        except Exception as e:
+                                return "ASCII EXC: %r" % (e,)
 
                 def hud_lines(self):
                         p = self.world.player

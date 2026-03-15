@@ -14,7 +14,7 @@ style ui_text_small is ui_text:
 
 style ui_mono_map_text is default:
     font "DejaVuSansMono.ttf"
-    size 12
+    size 10
     color "#EDEDED"
     line_spacing 0
     kerning 0
@@ -120,23 +120,26 @@ screen debug_screen(app):
     $ gen_w = max(300, int(sw * 0.165))
     $ gen_x = tune_x + tune_w + gap
     $ gen_y = pad
+    $ gen_h = max(280, int(sh * 0.30))
 
-    $ map_w = max(290, int(sw * 0.155))
-    $ map_h = max(170, int(sh * 0.22))
+    $ map_w = max(400, int(sw * 0.21))
+    $ map_h = max(360, int(sh * 0.34))
     $ map_x = sw - map_w - pad
     $ map_y = pad
 
-    $ log_w = max(500, int(sw * 0.295))
-    $ log_h = max(190, int(sh * 0.22))
+    $ log_w = max(560, int(sw * 0.31))
+    $ log_rows_visible = max(1, int(getattr(app, "log_page_size", 10)))
+    $ log_h = max(240, int(76 + (log_rows_visible * 17)))
     $ log_x = pad
     $ log_y = sh - log_h - pad
 
+    $ status_lines = app.hud_lines() if hasattr(app, "hud_lines") else []
     $ status_w = log_w
-    $ status_h = max(255, int(sh * 0.26))
+    $ status_h = max(340, int(92 + (len(status_lines) * 19)))
     $ status_x = pad
     $ status_y = log_y - status_h - gap
 
-    $ tests_w = max(760, int(sw * 0.49))
+    $ tests_w = max(900, int(sw * 0.52))
     $ tests_h = sh - (map_y + map_h + gap + pad)
     $ tests_x = sw - tests_w - pad
     $ tests_y = map_y + map_h + gap
@@ -163,7 +166,7 @@ screen debug_screen(app):
                     textbutton ("Log: ON" if app.show_log else "Log: OFF") action Function(app.toggle_log) style "ui_button" text_style "ui_button_text"
                     textbutton ("Tests: ON" if app.show_tests else "Tests: OFF") action Function(app.toggle_tests) style "ui_button" text_style "ui_button_text"
                     if hasattr(app, "toggle_render_tune"):
-                        textbutton ("Render: ON" if getattr(app, "show_render_tune", True) else "Render: OFF") action Function(app.toggle_render_tune) style "ui_button" text_style "ui_button_text"
+                        textbutton ("Render: ON" if getattr(app, "show_render_tune", True) else "Tune: OFF") action Function(app.toggle_render_tune) style "ui_button" text_style "ui_button_text"
                     if hasattr(app, "toggle_generator_ui"):
                         textbutton ("Generator UI: ON" if getattr(app, "show_generator_ui", False) else "Generator UI: OFF") action Function(app.toggle_generator_ui) style "ui_button" text_style "ui_button_text"
                     if hasattr(app, "toggle_panel"):
@@ -281,25 +284,32 @@ screen debug_screen(app):
                 xpos gen_x
                 ypos gen_y
                 xsize gen_w
-                ysize max(260, int(sh * 0.25))
+                ysize gen_h
                 vbox:
                     spacing 4
                     text "Generator" style "ui_text"
-                    text "Stable fixtures + exploration layouts" style "ui_text_small"
-                    if hasattr(app, "do_gen_house_floor_mvp"):
-                        textbutton "Generate house floor MVP [2]" action Function(app.do_gen_house_floor_mvp) style "ui_button" text_style "ui_button_text"
-                    if hasattr(app, "do_gen_demo_room"):
-                        textbutton "Load demo room [1]" action Function(app.do_gen_demo_room) style "ui_button" text_style "ui_button_text"
-                    null height 4
-                    text "New generated layouts" style "ui_text_small"
-                    if hasattr(app, "do_gen_maze"):
-                        textbutton "Generate maze [3]" action Function(app.do_gen_maze) style "ui_button" text_style "ui_button_text"
-                    if hasattr(app, "do_gen_maze_doors"):
-                        textbutton "Generate maze with doors [4]" action Function(app.do_gen_maze_doors) style "ui_button" text_style "ui_button_text"
-                    if hasattr(app, "do_gen_tunnel"):
-                        textbutton "Generate tunnel [5]" action Function(app.do_gen_tunnel) style "ui_button" text_style "ui_button_text"
-                    if hasattr(app, "do_gen_tunnel_doors"):
-                        textbutton "Generate tunnel with doors [6]" action Function(app.do_gen_tunnel_doors) style "ui_button" text_style "ui_button_text"
+                    viewport:
+                        draggable True
+                        mousewheel True
+                        scrollbars "vertical"
+                        ymaximum gen_h - 78
+                        vbox:
+                            spacing 4
+                            text "Stable fixtures + exploration layouts" style "ui_text_small"
+                            if hasattr(app, "do_gen_house_floor_mvp"):
+                                textbutton "Generate house floor MVP [2]" action Function(app.do_gen_house_floor_mvp) style "ui_button" text_style "ui_button_text"
+                            if hasattr(app, "do_gen_demo_room"):
+                                textbutton "Load demo room [1]" action Function(app.do_gen_demo_room) style "ui_button" text_style "ui_button_text"
+                            null height 4
+                            text "New generated layouts" style "ui_text_small"
+                            if hasattr(app, "do_gen_maze"):
+                                textbutton "Generate maze [3]" action Function(app.do_gen_maze) style "ui_button" text_style "ui_button_text"
+                            if hasattr(app, "do_gen_maze_doors"):
+                                textbutton "Generate maze with doors [4]" action Function(app.do_gen_maze_doors) style "ui_button" text_style "ui_button_text"
+                            if hasattr(app, "do_gen_tunnel"):
+                                textbutton "Generate tunnel [5]" action Function(app.do_gen_tunnel) style "ui_button" text_style "ui_button_text"
+                            if hasattr(app, "do_gen_tunnel_doors"):
+                                textbutton "Generate tunnel with doors [6]" action Function(app.do_gen_tunnel_doors) style "ui_button" text_style "ui_button_text"
                     textbutton "Close" action Function(app.toggle_generator_ui) style "ui_button" text_style "ui_button_text"
 
         if getattr(app, "show_map", True):
@@ -312,12 +322,7 @@ screen debug_screen(app):
                 vbox:
                     spacing 4
                     text "ASCII Map" style "ui_text"
-                    viewport:
-                        draggable True
-                        mousewheel True
-                        scrollbars "vertical"
-                        ymaximum map_h - 40
-                        text app.ascii_map() style "ui_mono_map_text" substitute False
+                    text app.ascii_map_window(5) style "ui_mono_map_text" substitute False
 
         if getattr(app, "show_status", True):
             frame:
@@ -330,15 +335,8 @@ screen debug_screen(app):
                     spacing 2
                     text "Status" style "ui_text"
                     text "Keys: W/S move, A/D strafe, Q/E turn, F interact" style "ui_text_small"
-                    viewport:
-                        draggable True
-                        mousewheel True
-                        scrollbars "vertical"
-                        ymaximum status_h - 48
-                        vbox:
-                            spacing 2
-                            for line in app.hud_lines():
-                                text app.debug_markup_text(line) style "ui_text_small" substitute False
+                    for line in status_lines:
+                        text (app.debug_markup_text(line) if hasattr(app, "debug_markup_text") else line) style "ui_text_small" substitute False layout "nobreak"
 
         if getattr(app, "show_log", True):
             frame:
@@ -362,7 +360,7 @@ screen debug_screen(app):
                     vbox:
                         spacing 2
                         for line in app.log_rows_for_ui():
-                            text line style "ui_text_small" substitute False
+                            text line style "ui_text_small" substitute False layout "nobreak"
 
         if getattr(app, "show_tests", True):
             frame:
@@ -371,34 +369,52 @@ screen debug_screen(app):
                 ypos tests_y
                 xsize tests_w
                 ysize tests_h
-                vbox:
-                    spacing 4
-                    hbox:
-                        spacing 10
-                        text "Tests" style "ui_text"
-                        textbutton "Run All" action Function(app.do_run_all_tests) style "ui_button" text_style "ui_button_text"
-                        text ("Executed: %d" % len(app.test_results)) style "ui_text_small"
-                    viewport:
-                        draggable True
-                        mousewheel True
-                        scrollbars "vertical"
-                        ymaximum tests_h - 46
+                hbox:
+                    spacing 10
+                    frame:
+                        style "ui_overlay_frame"
+                        xsize max(250, int(tests_w * 0.22))
+                        ysize tests_h
                         vbox:
-                            spacing 3
+                            spacing 4
+                            hbox:
+                                spacing 8
+                                text "Tests" style "ui_text"
+                                textbutton "Run All" action Function(app.do_run_all_tests) style "ui_button" text_style "ui_button_text"
+                            text ("Executed: %d" % len(app.test_results)) style "ui_text_small"
                             text "Available" style "ui_text_small"
-                            for tname in app.available_tests():
-                                textbutton ("Run: %s" % tname) action Function(app.do_run_test, tname) style "ui_button" text_style "ui_button_text"
-                            null height 6
+                            viewport:
+                                draggable True
+                                mousewheel True
+                                scrollbars "vertical"
+                                ymaximum tests_h - 90
+                                vbox:
+                                    spacing 4
+                                    for tname in app.available_tests():
+                                        textbutton tname action Function(app.do_run_test, tname) style "ui_button" text_style "ui_button_text"
+                    frame:
+                        style "ui_overlay_frame"
+                        xfill True
+                        ysize tests_h
+                        vbox:
+                            spacing 4
                             text "Executed results" style "ui_text_small"
-                            if app.test_results:
-                                for entry in reversed(app.test_results):
-                                    $ name = entry[0]
-                                    $ ok = entry[1]
-                                    $ msg = entry[2] if len(entry) > 2 else ""
-                                    $ row_text = app.debug_markup_text("%s | %s | %s" % (app.test_status_label(ok), name, msg))
-                                    text row_text style "ui_text_small" substitute False layout "nobreak"
-                            else:
-                                text "No tests run yet." style "ui_text_small"
+                            viewport:
+                                draggable True
+                                mousewheel True
+                                scrollbars "vertical"
+                                ymaximum tests_h - 52
+                                vbox:
+                                    spacing 3
+                                    if app.test_results:
+                                        for entry in reversed(app.test_results):
+                                            $ name = entry[0]
+                                            $ ok = entry[1]
+                                            $ msg = entry[2] if len(entry) > 2 else ""
+                                            $ row_text = (app.debug_markup_text("%s | %s | %s" % (app.test_status_label(ok), name, msg)) if hasattr(app, "debug_markup_text") else ("%s | %s | %s" % (app.test_status_label(ok), name, msg)))
+                                            text row_text style "ui_text_small" substitute False layout "nobreak"
+                                    else:
+                                        text "No tests run yet." style "ui_text_small"
 
         if app.show_controls:
             frame:
