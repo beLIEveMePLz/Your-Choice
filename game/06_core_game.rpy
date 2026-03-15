@@ -404,13 +404,18 @@ init -20 python:
                         self.view = None
                         self.renderer = None
 
+                        self.show_panel = True
                         self.show_controls = True
+                        self.show_status = True
                         self.show_map = True
                         self.show_log = True
-                        self.show_tests = True
+                        self.show_tests = False
+                        self.show_render_tune = False
                         self.show_generator_ui = False
 
                         self.log = []
+                        self.log_page_size = 10
+                        self.log_page_back = 0
                         self.test_results = []
 
                         self._log("Game init OK")
@@ -480,8 +485,16 @@ init -20 python:
                 # --------------------------------------------------
                 # UI toggles
                 # --------------------------------------------------
+                def toggle_panel(self):
+                        self.show_panel = not self.show_panel
+                        self._refresh_ui()
+
                 def toggle_controls(self):
                         self.show_controls = not self.show_controls
+                        self._refresh_ui()
+
+                def toggle_status(self):
+                        self.show_status = not self.show_status
                         self._refresh_ui()
 
                 def toggle_map(self):
@@ -494,6 +507,10 @@ init -20 python:
 
                 def toggle_tests(self):
                         self.show_tests = not self.show_tests
+                        self._refresh_ui()
+
+                def toggle_render_tune(self):
+                        self.show_render_tune = not self.show_render_tune
                         self._refresh_ui()
 
                 def toggle_generator_ui(self):
@@ -849,6 +866,100 @@ init -20 python:
                 def tune_render_clear_saved(self):
                         self.clear_saved_render_tune()
 
+
+                def debug_markup_text(self, text):
+                        try:
+                                s = str(text)
+                        except Exception:
+                                s = "%r" % (text,)
+                        import re
+                        s = re.sub(r"(?<!\w)FAIL(?!\w)", "{color=#ff5a5a}FAIL{/color}", s)
+                        s = re.sub(r"(?<!\w)OK(?!\w)", "{color=#57d957}OK{/color}", s)
+                        s = re.sub(r"(?<!\w)OFF(?!\w)", "{color=#ff5a5a}OFF{/color}", s)
+                        s = re.sub(r"(?<!\w)ON(?!\w)", "{color=#57d957}ON{/color}", s)
+                        return s
+
+                def _log_bounds(self):
+                        total = len(self.log)
+                        page_size = max(1, int(getattr(self, "log_page_size", 10)))
+                        max_back = max(0, (total - 1) // page_size) if total > 0 else 0
+                        if getattr(self, "log_page_back", 0) < 0:
+                                self.log_page_back = 0
+                        if self.log_page_back > max_back:
+                                self.log_page_back = max_back
+                        end = total - (self.log_page_back * page_size)
+                        if end < 0:
+                                end = 0
+                        start = max(0, end - page_size)
+                        return start, end, total, page_size, max_back
+
+                def log_rows_for_ui(self):
+                        start, end, total, page_size, max_back = self._log_bounds()
+                        rows = []
+                        for line in self.log[start:end]:
+                                rows.append(self.debug_markup_text(line))
+                        return rows
+
+                def log_page_label(self):
+                        start, end, total, page_size, max_back = self._log_bounds()
+                        if total <= 0:
+                                return "0 / 0"
+                        return "%d-%d / %d" % (start + 1, end, total)
+
+                def can_log_page_older(self):
+                        start, end, total, page_size, max_back = self._log_bounds()
+                        return start > 0
+
+                def can_log_page_newer(self):
+                        start, end, total, page_size, max_back = self._log_bounds()
+                        return self.log_page_back > 0
+
+                def log_page_older(self):
+                        if self.can_log_page_older():
+                                self.log_page_back += 1
+                        self._refresh_ui()
+
+                def log_page_newer(self):
+                        if self.can_log_page_newer():
+                                self.log_page_back -= 1
+                        self._refresh_ui()
+
+                def log_page_oldest(self):
+                        start, end, total, page_size, max_back = self._log_bounds()
+                        self.log_page_back = max_back
+                        self._refresh_ui()
+
+                def log_page_latest(self):
+                        self.log_page_back = 0
+                        self._refresh_ui()
+
+                def test_status_label(self, ok):
+                        return "OK" if ok else "FAIL"
+
+                def test_status_color(self, ok):
+                        return "#57d957" if ok else "#ff5a5a"
+
+                def last_test_rows(self, limit=10):
+                        rows = []
+                        try:
+                                src = list(self.test_results)
+                        except Exception:
+                                src = []
+                        if limit and limit > 0:
+                                src = src[-limit:]
+                        for item in reversed(src):
+                                try:
+                                        name, ok, msg = item
+                                except Exception:
+                                        continue
+                                rows.append({
+                                        "name": name,
+                                        "ok": bool(ok),
+                                        "status": self.test_status_label(ok),
+                                        "status_color": self.test_status_color(ok),
+                                        "msg": msg or "",
+                                })
+                        return rows
 
                 def _surface_debug_label(self, profile):
                         if profile is None:
